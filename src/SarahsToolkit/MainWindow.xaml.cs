@@ -448,14 +448,13 @@ namespace SarahsToolkit
                 {
                     client.DefaultRequestHeaders.UserAgent.ParseAdd("SarahsToolkit");
                     client.Timeout = TimeSpan.FromMinutes(10);
-                    using (var resp = await client.GetAsync(info.Url, HttpCompletionOption.ResponseHeadersRead))
-                    {
-                        resp.EnsureSuccessStatusCode();
-                        using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
-                        {
-                            await resp.Content.CopyToAsync(fs);
-                        }
-                    }
+                    // The installer is hosted base64-encoded in the gist (gists are text-only).
+                    byte[] bytes;
+                    if (string.Equals(info.Encoding, "base64", StringComparison.OrdinalIgnoreCase))
+                        bytes = Convert.FromBase64String(await client.GetStringAsync(info.Url));
+                    else
+                        bytes = await client.GetByteArrayAsync(info.Url);
+                    File.WriteAllBytes(tmp, bytes);
                 }
                 SetStatus("Launching installer...");
                 Process.Start(new ProcessStartInfo(tmp) { UseShellExecute = true });
