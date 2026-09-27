@@ -564,30 +564,35 @@ namespace SarahsToolkit
         {
             var btn = (Button)sender;
             btn.IsEnabled = false;
-            SpeedLabel.Text = "Testing download speed...";
+            SpeedLabel.Text = "Downloading Speedtest CLI (Ookla)...";
             try
             {
-                double mbps = await Task.Run(async () =>
+                var r = await _tools.SpeedTestCliAsync();
+                string wifi = null, result = null, url = null, error = null;
+                foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    using (var client = new HttpClient())
-                    {
-                        client.Timeout = TimeSpan.FromMinutes(2);
-                        var sw = Stopwatch.StartNew();
-                        byte[] data = await client.GetByteArrayAsync(
-                            "https://speed.cloudflare.com/__down?bytes=25000000");
-                        sw.Stop();
-                        return data.Length * 8.0 / sw.Elapsed.TotalSeconds / 1000000.0;
-                    }
-                });
-                string wifi = await Task.Run(() =>
+                    if (line.StartsWith("WIFI|")) wifi = line.Substring(5);
+                    else if (line.StartsWith("RESULT|")) result = line.Substring(7);
+                    else if (line.StartsWith("URL|")) url = line.Substring(4);
+                    else if (line.StartsWith("ERROR|")) error = line.Substring(6);
+                }
+                if (result != null)
                 {
-                    var r = PowerShellRunner.RunScript(
-                        "(netsh wlan show interfaces) -match 'Signal' | Select-Object -First 1", 1);
-                    var m = Regex.Match(r.Output ?? "", @"(\d+)\s*%");
-                    return m.Success ? m.Groups[1].Value + "%" : null;
-                });
-                SpeedLabel.Text = "Download: " + mbps.ToString("F1") + " Mbps" +
-                    (wifi != null ? ", WiFi signal: " + wifi : " (wired or WiFi info unavailable)");
+                    var parts = result.Split('|');
+                    SpeedLabel.Text =
+                        "Server: " + parts[3] + "\n" +
+                        "ISP: " + parts[4] + "\n" +
+                        "Ping: " + parts[0] + " ms\n" +
+                        "Download: " + parts[1] + " Mbps\n" +
+                        "Upload: " + parts[2] + " Mbps\n" +
+                        wifi +
+                        (url != null ? "\nFull results: " + url : "");
+                }
+                else
+                {
+                    SpeedLabel.Text = "Speed test failed" + (error != null ? ": " + error + "." : ".") +
+                        " Check your connection or try speedtest.net in your browser.";
+                }
             }
             catch (Exception ex)
             {
