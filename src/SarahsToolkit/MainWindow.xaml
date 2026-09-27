@@ -9,7 +9,7 @@
                 <TextBlock x:Name="StatusText" Text="Ready"/>
             </StatusBarItem>
         </StatusBar>
-        <TabControl Margin="10">
+        <TabControl x:Name="MainTabs" Margin="10" SelectionChanged="MainTabs_SelectionChanged">
             <TabItem Header="Cleanup">
                 <DockPanel Margin="8">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
@@ -35,6 +35,20 @@
                     </ScrollViewer>
                 </DockPanel>
             </TabItem>
+            <TabItem x:Name="ServicesTab" Header="Services">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Refresh status" Width="120" Margin="0,0,8,0" Click="RefreshServices_Click"/>
+                        <Button Content="Disable selected" Width="120" Margin="0,0,8,0" Click="DisableServices_Click"/>
+                        <Button Content="Restore selected" Width="120" Click="RestoreServices_Click"/>
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" TextWrapping="Wrap" Foreground="Gray"
+                               Text="Only the checked services are ever touched. Disabling sets a service to Disabled and stops it; restoring sets it back to Manual. Print Spooler is included - restore it if you use a printer."/>
+                    <ScrollViewer>
+                        <StackPanel x:Name="ServicesPanel"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
             <TabItem Header="Optimize">
                 <ScrollViewer Margin="8">
                     <StackPanel x:Name="OptimizePanel"/>
@@ -45,41 +59,92 @@
                     <StackPanel x:Name="CustomizePanel"/>
                 </ScrollViewer>
             </TabItem>
-            <TabItem Header="Tools">
+            <TabItem Header="Network">
                 <ScrollViewer Margin="8">
                     <StackPanel>
                         <GroupBox Header="DNS" Margin="0,0,0,8" Padding="8">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="Cloudflare" Tag="1.1.1.1,1.0.0.1" Width="100" Margin="0,0,8,0" Click="Dns_Click"/>
-                                <Button Content="Google" Tag="8.8.8.8,8.8.4.4" Width="100" Margin="0,0,8,0" Click="Dns_Click"/>
-                                <Button Content="Quad9" Tag="9.9.9.9,149.112.112.112" Width="100" Margin="0,0,8,0" Click="Dns_Click"/>
-                                <Button Content="OpenDNS" Tag="208.67.222.222,208.67.220.220" Width="100" Click="Dns_Click"/>
-                            </StackPanel>
-                        </GroupBox>
-                        <GroupBox Header="Services" Margin="0,0,0,8" Padding="8">
                             <StackPanel>
-                                <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,8"
-                                           Text="Disables non-essential background services and telemetry (DiagTrack, Maps, Retail Demo, Fax, smart cards, media sharing, etc.). Print Spooler is included - restore it from here if you use a printer."/>
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Content="Disable non-essential" Width="150" Margin="0,0,8,0" Click="DisableServices_Click"/>
-                                    <Button Content="Restore to Manual" Width="150" Click="EnableServices_Click"/>
-                                </StackPanel>
+                                <TextBlock Text="DNS provider:" Foreground="Gray" Margin="0,0,0,4"/>
+                                <WrapPanel Margin="0,0,0,4">
+                                    <Button Content="Automatic (fastest)" Width="130" Margin="0,0,8,8" Click="AutoDns_Click"/>
+                                    <Button Content="Cloudflare" Tag="1.1.1.1,1.0.0.1" Width="100" Margin="0,0,8,8" Click="Dns_Click"/>
+                                    <Button Content="Google" Tag="8.8.8.8,8.8.4.4" Width="100" Margin="0,0,8,8" Click="Dns_Click"/>
+                                    <Button Content="Quad9" Tag="9.9.9.9,149.112.112.112" Width="100" Margin="0,0,8,8" Click="Dns_Click"/>
+                                    <Button Content="OpenDNS" Tag="208.67.222.222,208.67.220.220" Width="100" Margin="0,0,8,8" Click="Dns_Click"/>
+                                </WrapPanel>
+                                <TextBlock Text="Automatic pings Cloudflare, Google and Quad9 ten times each and applies the fastest." Foreground="Gray" TextWrapping="Wrap"/>
                             </StackPanel>
                         </GroupBox>
-                        <GroupBox Header="Maintenance" Margin="0,0,0,8" Padding="8">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="SSD ReTrim" Width="120" Margin="0,0,8,0" Click="ReTrim_Click"/>
-                                <Button Content="Network rescue" Width="120" Click="NetworkRescue_Click"/>
+                        <GroupBox Header="Speed test" Margin="0,0,0,8" Padding="8">
+                            <StackPanel>
+                                <Button Content="Run speed test" Width="130" HorizontalAlignment="Left" Click="SpeedTest_Click"/>
+                                <TextBlock x:Name="SpeedLabel" Margin="0,8,0,0" Foreground="Gray" TextWrapping="Wrap"/>
                             </StackPanel>
                         </GroupBox>
-                        <GroupBox Header="Updates" Padding="8">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="Check for updates" Width="140" Margin="0,0,8,0" Click="CheckUpdates_Click"/>
-                                <TextBlock x:Name="UpdateLabel" VerticalAlignment="Center" Foreground="Gray" Text="Checks for updates on launch and on demand."/>
+                        <GroupBox Header="Network rescue" Padding="8">
+                            <StackPanel>
+                                <Button Content="Run network rescue" Width="150" HorizontalAlignment="Left" Click="NetworkRescue_Click"/>
+                                <TextBlock Margin="0,8,0,0" Foreground="Gray" TextWrapping="Wrap"
+                                           Text="Flushes the DNS cache, resets Winsock and the TCP/IP stack, then renews the DHCP lease. Reboot after running."/>
                             </StackPanel>
                         </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Tools">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top">
+                        <GroupBox Header="System" Margin="0,0,0,8" Padding="8">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <Button Content="Specs check" Width="110" Margin="0,0,8,8" Click="SpecsCheck_Click"/>
+                                    <Button Content="Space analyzer" Width="110" Margin="0,0,8,8" Click="SpaceAnalyzer_Click"/>
+                                    <Button Content="Drive health" Width="110" Margin="0,0,8,8" Click="DriveHealth_Click"/>
+                                    <Button Content="SFC scan" Width="110" Margin="0,0,8,8" Click="SfcScan_Click"/>
+                                    <Button Content="Startup manager" Width="120" Margin="0,0,8,8" Click="StartupManager_Click"/>
+                                    <Button Content="Shader sweep" Width="110" Margin="0,0,8,8" Click="ShaderSweep_Click"/>
+                                </WrapPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <TextBlock Text="Disable startup entries (e.g. 0,2,3):" VerticalAlignment="Center" Foreground="Gray"/>
+                                    <TextBox x:Name="StartupIndicesBox" Width="140" Margin="8,0,8,0" VerticalAlignment="Center"/>
+                                    <Button Content="Disable" Width="80" Click="DisableStartup_Click"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Windows" Margin="0,0,0,8" Padding="8">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <Button Content="Update fixer" Width="110" Margin="0,0,8,8" Click="UpdateFixer_Click"/>
+                                    <Button Content="Auto-troubleshoot" Width="130" Margin="0,0,8,8" Click="Troubleshoot_Click"/>
+                                    <Button Content="Package updater" Width="120" Margin="0,0,8,8" Click="PackageUpdater_Click"/>
+                                    <Button Content="SSD ReTrim" Width="110" Margin="0,0,8,8" Click="ReTrim_Click"/>
+                                    <Button Content="System maintenance" Width="140" Margin="0,0,8,8" Click="SystemMaintenance_Click"/>
+                                    <Button Content="Check for updates" Width="130" Margin="0,0,8,8" Click="CheckUpdates_Click"/>
+                                </WrapPanel>
+                                <TextBlock x:Name="UpdateLabel" Foreground="Gray" TextWrapping="Wrap"
+                                           Text="The app checks for updates on launch. SFC scan and package updates can take a while."/>
+                            </StackPanel>
+                        </GroupBox>
+                        <TextBlock Text="Output" Foreground="Gray" Margin="0,0,0,4"/>
+                    </StackPanel>
+                    <TextBox x:Name="ToolsOutput" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                             FontFamily="Consolas"/>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Dev">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Run all checks" Width="120" Margin="0,0,8,0" Click="DevRunAll_Click"/>
+                        <Button Content="Validate data files" Width="130" Margin="0,0,8,0" Click="DevValidateData_Click"/>
+                        <Button Content="Update check test" Width="130" Margin="0,0,8,0" Click="DevUpdateCheck_Click"/>
+                        <Button Content="Payload test" Width="110" Margin="0,0,8,0" Click="DevPayloadCheck_Click"/>
+                        <Button Content="Environment check" Width="130" Click="DevEnvCheck_Click"/>
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" TextWrapping="Wrap" Foreground="Gray"
+                               Text="Validation suite for the app itself: data files, the update pipeline, and the runtime environment. Nothing here changes your system."/>
+                    <ListBox x:Name="DevLog"/>
+                </DockPanel>
             </TabItem>
             <TabItem Header="About">
                 <StackPanel Margin="16">
