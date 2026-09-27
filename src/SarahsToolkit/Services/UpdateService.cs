@@ -13,6 +13,7 @@ namespace SarahsToolkit.Services
         public bool Available { get; set; }
         public string Version { get; set; } = "";
         public string Url { get; set; } = "";
+        public string Encoding { get; set; } = "";
         public string Notes { get; set; } = "";
         public string Message { get; set; } = "";
     }
@@ -41,6 +42,7 @@ namespace SarahsToolkit.Services
                         var root = doc.RootElement;
                         string latest = root.GetProperty("version").GetString() ?? "";
                         string dl = root.TryGetProperty("url", out var u) ? u.GetString() ?? "" : "";
+                        string enc = root.TryGetProperty("encoding", out var e) ? e.GetString() ?? "" : "";
                         string notes = root.TryGetProperty("notes", out var n) ? n.GetString() ?? "" : "";
                         if (string.IsNullOrWhiteSpace(latest) || string.IsNullOrWhiteSpace(dl))
                             return new UpdateInfo
@@ -54,6 +56,7 @@ namespace SarahsToolkit.Services
                                 Available = true,
                                 Version = latest,
                                 Url = dl,
+                                Encoding = enc,
                                 Notes = notes
                             };
                         return new UpdateInfo
