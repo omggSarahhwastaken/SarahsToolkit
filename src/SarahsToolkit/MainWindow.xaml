@@ -552,6 +552,24 @@
                                                Text="Drops Windows' standby file cache — the leftovers it keeps 'just in case'. Your apps keep their memory; only cached file data is freed, the same stuff Windows discards on its own when RAM is actually needed."/>
                                 </StackPanel>
                             </GroupBox>
+                            <GroupBox Header="Performance tracker" Margin="0,0,0,10" Padding="10">
+                                <StackPanel>
+                                    <CheckBox x:Name="PerfTrackEnabled" Content="Log performance while I'm gaming"
+                                              IsChecked="True" Margin="0,0,0,6"
+                                              Checked="PerfTrackEnabled_Changed" Unchecked="PerfTrackEnabled_Changed"/>
+                                    <TextBlock x:Name="PerfStatus" Style="{StaticResource Muted12}"
+                                               TextWrapping="Wrap" Margin="0,0,0,6"
+                                               Text="Watching for games…"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Button Content="Open log" Width="100" Margin="0,0,8,0"
+                                                Click="PerfOpenLog_Click"/>
+                                        <Button Content="Clear log" Width="100"
+                                                Click="PerfClearLog_Click"/>
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource Muted12}" TextWrapping="Wrap"
+                                               Text="Detects Fortnite, Roblox, Minecraft Java, VRChat, DCS World and GTA V, then logs CPU, RAM and temperature every 15 seconds. The log never grows past 1 MB — oldest entries are trimmed automatically."/>
+                                </StackPanel>
+                            </GroupBox>
                             <GroupBox Header="Windows" Margin="0,0,0,10" Padding="10">
                                 <StackPanel>
                                     <WrapPanel>

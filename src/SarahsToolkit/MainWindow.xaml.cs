@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -30,6 +31,11 @@ namespace SarahsToolkit
         private readonly ServiceOptimizerService _services = new ServiceOptimizerService();
         private readonly ToolsService _tools = new ToolsService();
         private readonly UpdateService _updates = new UpdateService();
+        private readonly PerformanceTrackerService _perf = new PerformanceTrackerService();
+        private DispatcherTimer _perfTimer;
+        private bool _perfSampling;
+        private System.Windows.Forms.NotifyIcon _tray;
+        private bool _allowClose;
 
         private List<TweakDefinition> _tweakDefs = new List<TweakDefinition>();
         private List<PresetDefinition> _presetDefs = new List<PresetDefinition>();
@@ -70,6 +76,64 @@ namespace SarahsToolkit
             InitializeComponent();
             Loaded += MainWindow_Loaded;
             SourceInitialized += MainWindow_SourceInitialized;
+            // Let Windows shut down / restart without being trapped in the tray.
+            Application.Current.SessionEnding += (s, e) => _allowClose = true;
+        }
+
+        // ---------- System tray ----------
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            if (_allowClose)
+            {
+                if (_tray != null) { _tray.Dispose(); _tray = null; }
+                base.OnClosing(e);
+                return;
+            }
+            // Closing the window parks the app in the tray instead of exiting.
+            e.Cancel = true;
+            Hide();
+            EnsureTrayIcon();
+            _tray.Visible = true;
+            _tray.ShowBalloonTip(3000, "Sarah's Toolkit",
+                "Still running — double-click the tray icon to reopen, or right-click it to exit.",
+                System.Windows.Forms.ToolTipIcon.Info);
+        }
+
+        private void EnsureTrayIcon()
+        {
+            if (_tray != null) return;
+            _tray = new System.Windows.Forms.NotifyIcon();
+            try
+            {
+                _tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(
+                    Assembly.GetExecutingAssembly().Location);
+            }
+            catch { }
+            _tray.Text = "Sarah's Toolkit";
+            _tray.DoubleClick += (s, a) => ShowFromTray();
+            var menu = new System.Windows.Forms.ContextMenuStrip();
+            var showItem = new System.Windows.Forms.ToolStripMenuItem("Show Sarah's Toolkit");
+            showItem.Click += (s, a) => ShowFromTray();
+            var exitItem = new System.Windows.Forms.ToolStripMenuItem("Exit");
+            exitItem.Click += (s, a) =>
+            {
+                _allowClose = true;
+                if (_tray != null) { _tray.Dispose(); _tray = null; }
+                Application.Current.Shutdown();
+            };
+            menu.Items.Add(showItem);
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            menu.Items.Add(exitItem);
+            _tray.ContextMenuStrip = menu;
+        }
+
+        private void ShowFromTray()
+        {
+            Show();
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            if (_tray != null) _tray.Visible = false;
+            Activate();
         }
 
         private void MainWindow_SourceInitialized(object sender, EventArgs e)
@@ -148,6 +212,11 @@ namespace SarahsToolkit
                 MessageBox.Show("Failed to load service list: " + ex.Message,
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+
+            // Performance tracker: sample every 15s, log only while a known game runs.
+            _perfTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+            _perfTimer.Tick += PerfTimer_Tick;
+            _perfTimer.Start();
 
             DrawGauge(0);
             SetStatus("Ready.");
@@ -2186,6 +2255,7 @@ namespace SarahsToolkit
                 }
                 SetStatus("Launching installer...");
                 Process.Start(new ProcessStartInfo(tmp) { UseShellExecute = true });
+                _allowClose = true; // don't get parked in the tray; really exit
                 Application.Current.Shutdown();
             }
             catch (Exception ex)
@@ -2194,6 +2264,71 @@ namespace SarahsToolkit
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SetStatus("Ready.");
             }
+        }
+
+        // ---------- Performance tracker ----------
+
+        private async void PerfTimer_Tick(object sender, EventArgs e)
+        {
+            if (_perfSampling) return;
+            if (PerfTrackEnabled == null || PerfTrackEnabled.IsChecked != true) return;
+            _perfSampling = true;
+            try
+            {
+                PerfSample s = await _perf.SampleAsync();
+                if (string.IsNullOrEmpty(s.Game))
+                {
+                    PerfStatus.Text = "Watching for games… (Fortnite, Roblox, Minecraft, VRChat, DCS, GTA V)";
+                    return;
+                }
+                try { _perf.AppendLog(s); } catch { }
+                PerfStatus.Text = "Logging: " + s.Game + " — CPU " + s.CpuPct.ToString("0") +
+                    "% • RAM " + s.RamUsedGb.ToString("0.0") + "/" + s.RamTotalGb.ToString("0.0") + " GB" +
+                    (s.TempC >= 0 ? " • " + s.TempC + "C" : "");
+            }
+            catch { }
+            finally { _perfSampling = false; }
+        }
+
+        private void PerfTrackEnabled_Changed(object sender, RoutedEventArgs e)
+        {
+            if (PerfTrackEnabled == null || PerfStatus == null) return;
+            if (PerfTrackEnabled.IsChecked == true)
+            {
+                if (_perfTimer != null) _perfTimer.Start();
+                PerfStatus.Text = "Watching for games… (Fortnite, Roblox, Minecraft, VRChat, DCS, GTA V)";
+            }
+            else
+            {
+                if (_perfTimer != null) _perfTimer.Stop();
+                PerfStatus.Text = "Tracker paused.";
+            }
+        }
+
+        private void PerfOpenLog_Click(object sender, RoutedEventArgs e)
+        {
+            string path = _perf.LogPath;
+            try
+            {
+                if (File.Exists(path))
+                    Process.Start(new ProcessStartInfo("explorer.exe",
+                        "/select,\"" + path + "\"") { UseShellExecute = true });
+                else
+                    Process.Start(new ProcessStartInfo("explorer.exe",
+                        System.IO.Path.GetDirectoryName(path)) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not open the log location:\n" + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void PerfClearLog_Click(object sender, RoutedEventArgs e)
+        {
+            _perf.ClearLog();
+            PerfStatus.Text = "Log cleared. Watching for games… (Fortnite, Roblox, Minecraft, VRChat, DCS, GTA V)";
+            SetStatus("Performance log cleared.");
         }
 
         // ---------- Dev ----------
