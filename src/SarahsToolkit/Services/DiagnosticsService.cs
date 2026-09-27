@@ -16,7 +16,10 @@ namespace SarahsToolkit.Services
         {
             string script =
                 "$cpu = (Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name; " +
-                "$gpus = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Virtual|Basic Display|Remote' } | ForEach-Object { $_.Name }; " +
+                "$vc = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Virtual|Basic Display|Remote' }; " +
+                "$real = @($vc | Where-Object { $_.PNPDeviceID -notmatch '^USB' }); " +
+                "if ($real.Count -eq 0) { $real = @($vc) }; " +
+                "$gpus = $real | ForEach-Object { $_.Name }; " +
                 "$cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue; " +
                 "$ram = [math]::Round($cs.TotalPhysicalMemory / 1GB); " +
                 "$os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue; " +
@@ -334,7 +337,13 @@ namespace SarahsToolkit.Services
                 var snap = new DashboardSnapshot();
                 var sb = new StringBuilder();
                 sb.Append("$cpu = (Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name; ");
-                sb.Append("$gpu = (Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Virtual|Basic Display|Remote' } | Select-Object -First 1).Name; ");
+                // USB-attached display adapters (PNPDeviceID starts with USB\) are excluded; discrete
+                // NVIDIA/AMD GPUs are preferred so the real GPU wins over integrated graphics.
+                sb.Append("$vc = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Virtual|Basic Display|Remote' }; ");
+                sb.Append("$real = @($vc | Where-Object { $_.PNPDeviceID -notmatch '^USB' }); ");
+                sb.Append("if ($real.Count -eq 0) { $real = @($vc) }; ");
+                sb.Append("$pick = @($real | Where-Object { $_.Name -match 'NVIDIA|GeForce|AMD|Radeon' }); ");
+                sb.Append("$gpu = $(if ($pick.Count -gt 0) { $pick[0].Name } elseif ($real.Count -gt 0) { $real[0].Name } else { '' }); ");
                 sb.Append("$os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue; ");
                 sb.Append("$c = Get-PSDrive C -ErrorAction SilentlyContinue; ");
                 sb.Append("$up = (Get-Date) - $os.LastBootUpTime; ");
@@ -346,9 +355,11 @@ namespace SarahsToolkit.Services
                 sb.Append("Write-Output ('DISKFREE=' + [math]::Round($c.Free / 1GB, 1)); ");
                 sb.Append("Write-Output ('UPTIME=' + $up.Days + 'd ' + $up.Hours + 'h ' + $up.Minutes + 'm'); ");
                 sb.Append("Write-Output ('BUILD=' + $os.BuildNumber); ");
+                // Only Windows servicing/update keys count as "restart pending". PendingFileRenameOperations
+                // is set by ordinary third-party installers and survives Fast Startup shutdowns, so it
+                // fires when no Windows update actually needs a reboot.
                 sb.Append("$rb = (Test-Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending') -or ");
-                sb.Append("(Test-Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WindowsUpdate\\Auto Update\\RebootRequired') -or ");
-                sb.Append("$null -ne (Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue); ");
+                sb.Append("(Test-Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WindowsUpdate\\Auto Update\\RebootRequired'); ");
                 sb.Append("Write-Output ('REBOOT=' + $(if ($rb) { 'YES' } else { 'NO' })); ");
                 PowerShellResult r = PowerShellRunner.RunScript(sb.ToString(), 2);
                 foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
