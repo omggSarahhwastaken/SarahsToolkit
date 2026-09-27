@@ -354,9 +354,17 @@
 
                 <!-- ======== Optimize ======== -->
                 <Grid x:Name="PageOptimize" Visibility="Collapsed">
-                    <ScrollViewer Margin="20">
-                        <StackPanel x:Name="OptimizePanel"/>
-                    </ScrollViewer>
+                    <DockPanel Margin="20">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
+                            <Button Content="Apply recommended" Width="150"
+                                    Style="{StaticResource AccentButton}" Click="ApplyRecommended_Click"/>
+                            <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource Muted12}"
+                                       Text="Applies every tweak marked Recommended, in one click."/>
+                        </StackPanel>
+                        <ScrollViewer>
+                            <StackPanel x:Name="OptimizePanel"/>
+                        </ScrollViewer>
+                    </DockPanel>
                 </Grid>
 
                 <!-- ======== Presets ======== -->

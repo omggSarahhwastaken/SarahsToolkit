@@ -27,6 +27,7 @@ namespace SarahsToolkit.Models
         public string Description { get; set; }
         public string Category { get; set; }
         public bool RequiresReboot { get; set; }
+        public bool Recommended { get; set; } // shows a badge on Optimize; included in "Apply recommended"
         public List<RegistryOperation> Apply { get; set; } = new List<RegistryOperation>();
         public List<RegistryOperation> Revert { get; set; } = new List<RegistryOperation>();
         public RegistryCheck Check { get; set; }

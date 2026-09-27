@@ -525,12 +525,38 @@ namespace SarahsToolkit
                         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                         var left = new StackPanel();
-                        left.Children.Add(new TextBlock
+                        var nameRow = new StackPanel
+                        {
+                            Orientation = Orientation.Horizontal,
+                            VerticalAlignment = VerticalAlignment.Center
+                        };
+                        nameRow.Children.Add(new TextBlock
                         {
                             Text = tw.Name,
                             FontWeight = FontWeights.SemiBold,
-                            TextWrapping = TextWrapping.Wrap
+                            TextWrapping = TextWrapping.Wrap,
+                            VerticalAlignment = VerticalAlignment.Center
                         });
+                        if (tw.Recommended)
+                        {
+                            nameRow.Children.Add(new Border
+                            {
+                                Background = (Brush)FindResource("DkAccentBrush"),
+                                CornerRadius = new CornerRadius(4),
+                                Padding = new Thickness(8, 2, 8, 2),
+                                Margin = new Thickness(8, 0, 0, 0),
+                                VerticalAlignment = VerticalAlignment.Center,
+                                Child = new TextBlock
+                                {
+                                    Text = "★ Recommended",
+                                    FontSize = 11,
+                                    FontWeight = FontWeights.SemiBold,
+                                    Foreground = Brushes.White,
+                                    VerticalAlignment = VerticalAlignment.Center
+                                }
+                            });
+                        }
+                        left.Children.Add(nameRow);
                         left.Children.Add(new TextBlock
                         {
                             Text = tw.Description + (tw.RequiresReboot ? " (Restart required.)" : ""),
@@ -1544,6 +1570,44 @@ namespace SarahsToolkit
             {
                 MemoryAvailLabel.Text = "Available: —";
             }
+        }
+
+        private void ApplyRecommended_Click(object sender, RoutedEventArgs e)
+        {
+            var recs = _tweakDefs.Where(t => t.Recommended).ToList();
+            int applied = 0, already = 0, skipped = 0, failed = 0;
+            bool needsReboot = false;
+            var errors = new List<string>();
+            foreach (var tw in recs)
+            {
+                TweakState state;
+                try { state = _tweaks.GetState(tw); }
+                catch { state = TweakState.Unknown; }
+                if (state == TweakState.Applied) { already++; continue; }
+                if (state == TweakState.Unknown) { skipped++; continue; }
+                try
+                {
+                    _tweaks.Apply(tw);
+                    applied++;
+                    if (tw.RequiresReboot) needsReboot = true;
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    errors.Add(tw.Name + ": " + ex.Message);
+                }
+            }
+            // Re-sync the Optimize toggles.
+            BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
+            string msg = "Recommended tweaks: " + applied + " applied";
+            if (already > 0) msg += ", " + already + " already on";
+            if (skipped > 0) msg += ", " + skipped + " unreadable";
+            if (failed > 0) msg += ", " + failed + " failed";
+            msg += "." + (needsReboot ? " Restart Windows for full effect." : "");
+            SetStatus(msg);
+            if (failed > 0)
+                MessageBox.Show("Some tweaks failed:\n" + string.Join("\n", errors),
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private async void PurgeMemory_Click(object sender, RoutedEventArgs e)
