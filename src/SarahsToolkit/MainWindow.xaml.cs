@@ -763,8 +763,7 @@ namespace SarahsToolkit
                 {
                     var parts = result.Split('|');
                     SpeedLabel.Text =
-                        "Server: " + parts[3] + "\n" +
-                        "ISP: " + parts[4] + "\n" +
+                        "ISP: " + parts[3] + "\n" +
                         "Ping: " + parts[0] + " ms\n" +
                         "Download: " + parts[1] + " Mbps\n" +
                         "Upload: " + parts[2] + " Mbps\n" +
