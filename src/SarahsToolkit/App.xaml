@@ -2,4 +2,294 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
+    <Application.Resources>
+
+        <!-- ================= Sarah's Toolkit dark palette ================= -->
+        <Color x:Key="DkBg">#1E1E1E</Color>
+        <Color x:Key="DkPanel">#252526</Color>
+        <Color x:Key="DkControl">#2D2D30</Color>
+        <Color x:Key="DkControlHover">#3E3E42</Color>
+        <Color x:Key="DkBorder">#3F3F46</Color>
+        <Color x:Key="DkText">#E8E8E8</Color>
+        <Color x:Key="DkMuted">#9D9D9D</Color>
+        <Color x:Key="DkAccent">#007ACC</Color>
+        <Color x:Key="DkAccentHover">#1C97EA</Color>
+        <Color x:Key="DkSelection">#264F78</Color>
+
+        <SolidColorBrush x:Key="DkBgBrush" Color="{StaticResource DkBg}"/>
+        <SolidColorBrush x:Key="DkPanelBrush" Color="{StaticResource DkPanel}"/>
+        <SolidColorBrush x:Key="DkControlBrush" Color="{StaticResource DkControl}"/>
+        <SolidColorBrush x:Key="DkControlHoverBrush" Color="{StaticResource DkControlHover}"/>
+        <SolidColorBrush x:Key="DkBorderBrush" Color="{StaticResource DkBorder}"/>
+        <SolidColorBrush x:Key="DkTextBrush" Color="{StaticResource DkText}"/>
+        <SolidColorBrush x:Key="DkMutedBrush" Color="{StaticResource DkMuted}"/>
+        <SolidColorBrush x:Key="DkAccentBrush" Color="{StaticResource DkAccent}"/>
+        <SolidColorBrush x:Key="DkAccentHoverBrush" Color="{StaticResource DkAccentHover}"/>
+        <SolidColorBrush x:Key="DkSelectionBrush" Color="{StaticResource DkSelection}"/>
+
+        <!-- Window -->
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="{StaticResource DkBgBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+        </Style>
+
+        <!-- Text -->
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+        </Style>
+
+        <!-- Buttons -->
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource DkControlBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background"
+                                        Value="{StaticResource DkControlHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background"
+                                        Value="{StaticResource DkAccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource DkMutedBrush}"/>
+                                <Setter TargetName="bd" Property="Background"
+                                        Value="{StaticResource DkPanelBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Tabs -->
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="{StaticResource DkBgBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TabPanel Grid.Row="0" Panel.ZIndex="1" Margin="0,0,4,-1"
+                                      IsItemsHost="True" Background="Transparent"/>
+                            <Border Grid.Row="1"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1" CornerRadius="0,3,3,3" Padding="4">
+                                <ContentPresenter ContentSource="SelectedContent"/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="{StaticResource DkPanelBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DkMutedBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1,1,1,0"
+                                CornerRadius="4,4,0,0"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="2,0,2,0"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background"
+                                        Value="{StaticResource DkBgBrush}"/>
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource DkTextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background"
+                                        Value="{StaticResource DkControlHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Check boxes -->
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="box" Width="15" Height="15" CornerRadius="2"
+                                    Background="{StaticResource DkControlBrush}"
+                                    BorderBrush="{StaticResource DkBorderBrush}"
+                                    BorderThickness="1"
+                                    SnapsToDevicePixels="True">
+                                <Path x:Name="check" Data="M 2,7 L 6,11 L 12,2"
+                                      Stroke="{StaticResource DkTextBrush}"
+                                      StrokeThickness="2" Stretch="Uniform" Margin="2"
+                                      Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="check" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="box" Property="Background"
+                                        Value="{StaticResource DkAccentBrush}"/>
+                                <Setter TargetName="box" Property="BorderBrush"
+                                        Value="{StaticResource DkAccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="box" Property="BorderBrush"
+                                        Value="{StaticResource DkAccentHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource DkMutedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Group boxes -->
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupBox">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <ContentPresenter Grid.Row="0" ContentSource="Header"
+                                              Margin="8,0,0,0"/>
+                            <Border Grid.Row="1"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1" CornerRadius="4"
+                                    Padding="{TemplateBinding Padding}"
+                                    Margin="0,4,0,0"
+                                    Background="Transparent">
+                                <ContentPresenter/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- List boxes -->
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="{StaticResource DkPanelBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="Padding" Value="5,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="bd" Background="Transparent"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background"
+                                        Value="{StaticResource DkSelectionBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background"
+                                        Value="{StaticResource DkControlHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Progress bar -->
+        <Style TargetType="ProgressBar">
+            <Setter Property="Background" Value="{StaticResource DkPanelBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DkAccentBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="2"
+                                SnapsToDevicePixels="True">
+                            <Grid x:Name="PART_Track">
+                                <Rectangle x:Name="PART_Indicator"
+                                           Fill="{TemplateBinding Foreground}"
+                                           HorizontalAlignment="Left"
+                                           RadiusX="2" RadiusY="2"/>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Text boxes -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource DkControlBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="Padding" Value="4,2"/>
+        </Style>
+
+        <!-- Status bar -->
+        <Style TargetType="StatusBar">
+            <Setter Property="Background" Value="{StaticResource DkPanelBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DkMutedBrush}"/>
+        </Style>
+
+        <!-- Tool tips -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="{StaticResource DkControlBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+        </Style>
+
+    </Application.Resources>
 </Application>
