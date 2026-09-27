@@ -749,7 +749,7 @@ static void DoInstall(const char *selfPath) {
 
     SetConsoleTitleA(APP_DISPLAY_NAME " Setup");
     printf("==============================================================\n");
-    printf("  %s Setup v%s\n", APP_DISPLAY_NAME, APP_VERSION);
+    printf("  %s Setup\n", APP_DISPLAY_NAME);
     printf("==============================================================\n\n");
 
     if (WindowsMajorVersion() < 10)
@@ -828,6 +828,12 @@ static void DoInstall(const char *selfPath) {
         memset(&si, 0, sizeof(si));
         si.cb = sizeof(si);
         memset(&pi, 0, sizeof(pi));
+        /* Keep first-run .NET chatter (welcome banner, telemetry notice,
+         * dev-cert message) out of the setup screen. These only affect
+         * the build process itself, not the user's system settings. */
+        SetEnvironmentVariableA("DOTNET_NOLOGO", "1");
+        SetEnvironmentVariableA("DOTNET_SKIP_FIRST_TIME_EXPERIENCE", "1");
+        SetEnvironmentVariableA("DOTNET_CLI_TELEMETRY_OPTOUT", "1");
         if (CreateProcessA(NULL, buf, NULL, NULL, TRUE, 0,
                            NULL, NULL, &si, &pi)) {
             WaitForSingleObject(pi.hProcess, INFINITE);
@@ -838,6 +844,9 @@ static void DoInstall(const char *selfPath) {
             printf("  Could not start the build (%lu).\n",
                    (unsigned long)GetLastError());
         }
+        SetEnvironmentVariableA("DOTNET_NOLOGO", NULL);
+        SetEnvironmentVariableA("DOTNET_SKIP_FIRST_TIME_EXPERIENCE", NULL);
+        SetEnvironmentVariableA("DOTNET_CLI_TELEMETRY_OPTOUT", NULL);
         if (code != 0)
             Fail("The build failed. See the output above for details.");
     }
@@ -893,7 +902,7 @@ static void DoInstall(const char *selfPath) {
     RunHidden(cmd, 60000, NULL);
 
     printf("==============================================================\n");
-    printf("  %s v%s installed successfully!\n", APP_DISPLAY_NAME, APP_VERSION);
+    printf("  %s installed successfully!\n", APP_DISPLAY_NAME);
     printf("  Installed to: %s\n", installDir);
     printf("==============================================================\n");
     PauseExit(0);
