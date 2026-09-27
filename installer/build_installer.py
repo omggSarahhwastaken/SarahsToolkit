@@ -72,6 +72,11 @@ def main(argv):
     with open(exe_tmp, "rb") as f:
         exe = f.read()
     os.remove(exe_tmp)
+    # zig also emits a .pdb next to the exe; remove it so it never gets
+    # committed or embedded.
+    pdb_tmp = os.path.splitext(exe_tmp)[0] + ".pdb"
+    if os.path.exists(pdb_tmp):
+        os.remove(pdb_tmp)
 
     with open(out_exe, "wb") as f:
         f.write(exe)

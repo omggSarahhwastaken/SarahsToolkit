@@ -694,7 +694,15 @@
                                         <Button Content="Reset all settings" Click="SettingsReset_Click"/>
                                     </StackPanel>
                                     <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
-                                               Text="Settings live in a single settings.json file. No logs, no registry clutter."/>
+                                               Text="Settings live in a single settings.json file. The only log is the performance tracker log, capped at 1 MB."/>
+                                </StackPanel>
+                            </GroupBox>
+                            <GroupBox Header="Storage" Margin="0,0,0,12" Padding="10">
+                                <StackPanel>
+                                    <TextBlock x:Name="SettingsStorageText" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                               Text="Measuring…"/>
+                                    <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                               Text="The whole app — program files, settings and logs — is designed to stay far under 1 GB."/>
                                 </StackPanel>
                             </GroupBox>
                         </StackPanel>

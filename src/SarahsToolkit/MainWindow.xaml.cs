@@ -164,6 +164,19 @@ namespace SarahsToolkit
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            // Clean up the update installer the updater left in %TEMP% — it has
+            // already installed by the time the app relaunches. Best effort.
+            try
+            {
+                string leftover = System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(), "SarahsToolkitSetup_update.exe");
+                if (System.IO.File.Exists(leftover))
+                {
+                    try { System.IO.File.Delete(leftover); } catch { }
+                }
+            }
+            catch { }
+
             try
             {
                 string v = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
@@ -363,6 +376,7 @@ namespace SarahsToolkit
                     PageSettings.Visibility = Visibility.Visible;
                     PageTitle.Text = "Settings";
                     PageSubtitle.Text = "Appearance and behavior";
+                    RefreshStorageLabel();
                     break;
             }
         }
@@ -502,6 +516,46 @@ namespace SarahsToolkit
                 MessageBox.Show("Could not open the settings folder:\n" + ex.Message,
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        }
+
+        // Shows the app's total disk footprint: program files + settings/logs.
+        private void RefreshStorageLabel()
+        {
+            try
+            {
+                long appBytes = DirSize(AppDomain.CurrentDomain.BaseDirectory);
+                long dataBytes = DirSize(_settings.FolderPath);
+                SettingsStorageText.Text =
+                    "App: " + FormatBytes(appBytes) +
+                    "    Data (settings + logs): " + FormatBytes(dataBytes) +
+                    "    Total: " + FormatBytes(appBytes + dataBytes);
+            }
+            catch
+            {
+                SettingsStorageText.Text = "Could not measure disk usage.";
+            }
+        }
+
+        private static long DirSize(string path)
+        {
+            long total = 0;
+            try
+            {
+                foreach (string f in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                {
+                    try { total += new FileInfo(f).Length; } catch { }
+                }
+            }
+            catch { }
+            return total;
+        }
+
+        private static string FormatBytes(long b)
+        {
+            if (b < 1024) return b + " B";
+            double kb = b / 1024.0;
+            if (kb < 1024) return kb.ToString("0.#") + " KB";
+            return (kb / 1024.0).ToString("0.##") + " MB";
         }
 
         private void SettingsReset_Click(object sender, RoutedEventArgs e)

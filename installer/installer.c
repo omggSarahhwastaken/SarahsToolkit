@@ -876,7 +876,7 @@ static void DoInstall(const char *selfPath) {
     }
     CreateDirectoryA(installDir, NULL);
     _snprintf(cmd, sizeof(cmd),
-              "robocopy \"%s\" \"%s\" /E /NFL /NDL /NJH /NJS /NC /NS /R:2 /W:2",
+              "robocopy \"%s\" \"%s\" /E /NFL /NDL /NJH /NJS /NC /NS /R:2 /W:2 /XF *.pdb",
               buildOut, installDir);
     cmd[sizeof(cmd) - 1] = 0;
     if (!RunHidden(cmd, 300000, &rc) || rc >= 8) {
