@@ -654,6 +654,9 @@
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
                             <Button Content="Apply recommended" Width="150"
                                     Style="{StaticResource AccentButton}" Click="ApplyRecommended_Click"/>
+                            <Button x:Name="ReapplyDriftButton" Content="Re-apply my tweaks" Width="170" Visibility="Collapsed"
+                                    Margin="12,0,0,0" Style="{StaticResource AccentButton}" Click="ReapplyDrift_Click"
+                                    ToolTip="Some of your tweaks were changed outside the app (Windows updates can do this). Click to restore them."/>
                             <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource Muted12}"
                                        Text="Applies every tweak marked Recommended, in one click."/>
                         </StackPanel>

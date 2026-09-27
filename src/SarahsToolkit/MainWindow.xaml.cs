@@ -42,6 +42,9 @@ namespace SarahsToolkit
 
         private List<TweakDefinition> _tweakDefs = new List<TweakDefinition>();
         private List<PresetDefinition> _presetDefs = new List<PresetDefinition>();
+        // Tweaks the config file says are applied but the registry disagrees
+        // with (reverted outside the app, e.g. by a Windows update).
+        private List<TweakDefinition> _drifted = new List<TweakDefinition>();
         private readonly PresetService _presets = new PresetService();
         private readonly Dictionary<string, TextBlock> _presetRatingLabels =
             new Dictionary<string, TextBlock>();
@@ -256,7 +259,14 @@ namespace SarahsToolkit
 
             // Settings: load, apply, and honor the startup-page choice.
             _settings.Load();
+            BackfillLedgerIfNeeded();
             ApplySettings();
+            // If tweaks the config remembers got reverted outside the app
+            // (Windows updates do this), offer them back in one click.
+            RefreshDriftButton();
+            if (_drifted.Count > 0)
+                SetStatus(_drifted.Count + " of your tweaks were changed outside the app " +
+                    "(Windows updates can do this). Re-apply them from the Optimize page.");
 
             // Silent update check on every launch (unless disabled in Settings):
             // only speaks up if an update exists.
@@ -450,8 +460,14 @@ namespace SarahsToolkit
                 {
                     if (key == null) return;
                     if (_settings.Settings.StartWithWindows)
+                    {
                         key.SetValue("SarahsToolkit",
                             "\"" + Process.GetCurrentProcess().MainModule.FileName + "\"");
+                        // Clear any "disabled in Task Manager" flag, so ON really means ON.
+                        using (var approved = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", true))
+                            approved?.DeleteValue("SarahsToolkit", false);
+                    }
                     else if (key.GetValue("SarahsToolkit") != null)
                         key.DeleteValue("SarahsToolkit");
                 }
@@ -1352,9 +1368,16 @@ namespace SarahsToolkit
             try
             {
                 if (cb.IsChecked == true)
+                {
                     _tweaks.Apply(tw);
+                    LedgerNoteApplied(tw);
+                }
                 else
+                {
                     _tweaks.Revert(tw);
+                    LedgerNoteReverted(tw);
+                }
+                RefreshDriftButton();
                 SetStatus(tw.Name + (cb.IsChecked == true ? " applied." : " reverted.")
                     + (tw.RequiresReboot ? " Restart Windows to take full effect." : ""));
             }
@@ -1367,6 +1390,90 @@ namespace SarahsToolkit
                 MessageBox.Show("Failed to change setting:\n" + ex.Message,
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        }
+
+        // ---------- Tweak ledger: the config file remembers your toggles ----------
+
+        private void LedgerNoteApplied(TweakDefinition tw)
+        {
+            var list = _settings.Settings.AppliedTweaks;
+            if (list == null)
+            {
+                list = new List<string>();
+                _settings.Settings.AppliedTweaks = list;
+            }
+            if (!list.Contains(tw.Id))
+            {
+                list.Add(tw.Id);
+                _settings.Save();
+            }
+        }
+
+        private void LedgerNoteReverted(TweakDefinition tw)
+        {
+            var list = _settings.Settings.AppliedTweaks;
+            if (list != null && list.Remove(tw.Id))
+                _settings.Save();
+        }
+
+        // First run of this feature: record what's currently applied, so drift
+        // caused later (Windows updates, other tools) can be detected and undone.
+        private void BackfillLedgerIfNeeded()
+        {
+            if (_settings.Settings.AppliedTweaks != null) return;
+            var ids = new List<string>();
+            foreach (var tw in _tweakDefs)
+            {
+                try { if (_tweaks.GetState(tw) == TweakState.Applied) ids.Add(tw.Id); }
+                catch { }
+            }
+            _settings.Settings.AppliedTweaks = ids;
+            _settings.Save();
+        }
+
+        // Tweaks the ledger says are applied but the registry says aren't.
+        // Unreadable states don't count — only definite reverts.
+        private List<TweakDefinition> FindDriftedTweaks()
+        {
+            var result = new List<TweakDefinition>();
+            var ledger = _settings.Settings.AppliedTweaks;
+            if (ledger == null) return result;
+            foreach (string id in ledger)
+            {
+                var tw = _tweakDefs.FirstOrDefault(t => t.Id == id);
+                if (tw == null) continue;
+                try { if (_tweaks.GetState(tw) == TweakState.NotApplied) result.Add(tw); }
+                catch { }
+            }
+            return result;
+        }
+
+        private void RefreshDriftButton()
+        {
+            _drifted = FindDriftedTweaks();
+            if (_drifted.Count == 0)
+            {
+                ReapplyDriftButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+            ReapplyDriftButton.Content = "Re-apply my tweaks (" + _drifted.Count + ")";
+            ReapplyDriftButton.Visibility = Visibility.Visible;
+        }
+
+        private void ReapplyDrift_Click(object sender, RoutedEventArgs e)
+        {
+            int applied = 0, failed = 0;
+            foreach (var tw in _drifted.ToList())
+            {
+                try { _tweaks.Apply(tw); applied++; }
+                catch { failed++; }
+            }
+            BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
+            BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
+            BuildTweakTab(SecurityTweaksPanel, new[] { "Security" });
+            RefreshDriftButton();
+            SetStatus("Re-applied " + applied + " tweak(s)" +
+                (failed > 0 ? ", " + failed + " failed." : "."));
         }
 
         // ---------- Presets (visual cards) ----------
@@ -1529,7 +1636,7 @@ namespace SarahsToolkit
                 var tw = _tweakDefs.FirstOrDefault(t => t.Id == id);
                 if (tw == null) continue;
                 if (_tweaks.GetState(tw) != TweakState.NotApplied) continue;
-                try { _tweaks.Apply(tw); applied++; }
+                try { _tweaks.Apply(tw); LedgerNoteApplied(tw); applied++; }
                 catch { failed++; }
             }
             foreach (string id in PresetService.ResolveRevertIds(preset, _tweakDefs))
@@ -1537,7 +1644,7 @@ namespace SarahsToolkit
                 var tw = _tweakDefs.FirstOrDefault(t => t.Id == id);
                 if (tw == null) continue;
                 if (_tweaks.GetState(tw) != TweakState.Applied) continue;
-                try { _tweaks.Revert(tw); reverted++; }
+                try { _tweaks.Revert(tw); LedgerNoteReverted(tw); reverted++; }
                 catch { failed++; }
             }
             var changedParts = new List<string>();
@@ -1551,6 +1658,7 @@ namespace SarahsToolkit
             BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
             BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
             BuildTweakTab(SecurityTweaksPanel, new[] { "Security" });
+            RefreshDriftButton();
             RefreshPresetRatings();
         }
 
@@ -2380,6 +2488,7 @@ namespace SarahsToolkit
                 try
                 {
                     _tweaks.Apply(tw);
+                    LedgerNoteApplied(tw);
                     applied++;
                     if (tw.RequiresReboot) needsReboot = true;
                 }
@@ -2391,6 +2500,7 @@ namespace SarahsToolkit
             }
             // Re-sync the Optimize toggles.
             BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
+            RefreshDriftButton();
             string msg = "Recommended tweaks: " + applied + " applied";
             if (already > 0) msg += ", " + already + " already on";
             if (skipped > 0) msg += ", " + skipped + " unreadable";
