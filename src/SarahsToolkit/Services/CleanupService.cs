@@ -50,6 +50,12 @@ namespace SarahsToolkit.Services
                         continue;
                     }
 
+                    if (cat.StopServices != null && cat.StopServices.Count > 0)
+                    {
+                        string names = string.Join(",", cat.StopServices.Select(n => "'" + n + "'"));
+                        PowerShellRunner.RunScript("Stop-Service -Name " + names + " -Force -ErrorAction SilentlyContinue", 1);
+                    }
+
                     foreach (var rawPath in cat.Paths)
                     {
                         foreach (var search in ResolveSearchPaths(rawPath))
@@ -72,6 +78,12 @@ namespace SarahsToolkit.Services
                                 }
                             }
                         }
+                    }
+
+                    if (cat.StartServices != null && cat.StartServices.Count > 0)
+                    {
+                        string names = string.Join(",", cat.StartServices.Select(n => "'" + n + "'"));
+                        PowerShellRunner.RunScript("Start-Service -Name " + names + " -ErrorAction SilentlyContinue", 1);
                     }
                 }
 
