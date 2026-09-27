@@ -8,7 +8,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>SarahsToolkit</AssemblyName>
     <RootNamespace>SarahsToolkit</RootNamespace>
-    <Version>1.7.3</Version>
+    <Version>1.8.0</Version>
     <Product>Sarah's Toolkit</Product>
     <Description>Sarah's Toolkit - Windows cleanup, debloat and optimization</Description>
     <ApplicationIcon>app.ico</ApplicationIcon>

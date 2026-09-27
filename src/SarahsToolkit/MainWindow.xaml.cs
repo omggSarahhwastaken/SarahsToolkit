@@ -282,6 +282,13 @@ namespace SarahsToolkit
             _dashboardLoading = true;
             try
             {
+                // Top memory hogs refresh on their own slower cadence so the
+                // 1-second snapshot loop stays light.
+                if ((DateTime.UtcNow - _topProcsAt).TotalSeconds >= 5)
+                {
+                    _topProcsAt = DateTime.UtcNow;
+                    _ = RefreshTopProcessesAsync();
+                }
                 if (!quiet)
                 {
                     SetStatus("Reading system info...");
@@ -372,6 +379,130 @@ namespace SarahsToolkit
         private void DashRefresh_Click(object sender, RoutedEventArgs e)
         {
             _ = LoadDashboardAsync();
+        }
+
+        // ---------- Top memory processes (Home) ----------
+
+        private DateTime _topProcsAt = DateTime.MinValue;
+
+        private async Task RefreshTopProcessesAsync()
+        {
+            PowerShellResult r;
+            try
+            {
+                r = await Task.Run(() => PowerShellRunner.RunScript(
+                    "Get-Process -ErrorAction SilentlyContinue | Group-Object ProcessName | " +
+                    "ForEach-Object { [pscustomobject]@{ N=$_.Name; MB=[math]::Round((($_.Group | " +
+                    "Measure-Object WorkingSet64 -Sum).Sum) / 1MB) } } | " +
+                    "Sort-Object MB -Descending | Select-Object -First 6 | " +
+                    "ForEach-Object { $_.N + '|' + $_.MB }", 2));
+            }
+            catch { return; }
+            var items = new List<(string name, double mb)>();
+            foreach (var line in (r.Output ?? "").Split(
+                new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var p = line.Trim().Split('|');
+                if (p.Length == 2 && double.TryParse(p[1], out double mb) && mb > 0)
+                    items.Add((p[0], mb));
+            }
+            if (items.Count == 0) return; // keep the old list on failure
+            TopProcsPanel.Children.Clear();
+            double max = items.Max(i => i.mb);
+            var muted = (Brush)FindResource("DkMutedBrush");
+            var normal = (Brush)FindResource("DkTextBrush");
+            foreach (var item in items)
+            {
+                var row = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+                var top = new DockPanel();
+                var right = new TextBlock
+                {
+                    Foreground = muted,
+                    FontSize = 12,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Text = item.mb >= 1024
+                        ? (item.mb / 1024).ToString("0.0") + " GB"
+                        : ((int)item.mb).ToString("N0") + " MB"
+                };
+                right.SetValue(DockPanel.DockProperty, Dock.Right);
+                top.Children.Add(right);
+                top.Children.Add(new TextBlock
+                {
+                    Text = item.name,
+                    Foreground = normal,
+                    FontSize = 13
+                });
+                row.Children.Add(top);
+                row.Children.Add(new ProgressBar
+                {
+                    Style = (Style)FindResource("RoundProgress"),
+                    Height = 5,
+                    Minimum = 0,
+                    Maximum = 100,
+                    Value = max > 0 ? item.mb / max * 100 : 0,
+                    Margin = new Thickness(0, 4, 0, 0)
+                });
+                TopProcsPanel.Children.Add(row);
+            }
+        }
+
+        // ---------- Game ping test (Network) ----------
+
+        private async void PingTest_Click(object sender, RoutedEventArgs e)
+        {
+            PingResultsPanel.Children.Clear();
+            PingResultsPanel.Children.Add(new TextBlock
+            {
+                Text = "Pinging game servers (takes ~20 seconds)…",
+                Style = (Style)FindResource("Muted12")
+            });
+            SetStatus("Pinging game servers...");
+            List<PingTargetResult> results;
+            try
+            {
+                results = await _diag.PingGameServersAsync();
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Ping test failed: " + ex.Message);
+                return;
+            }
+            PingResultsPanel.Children.Clear();
+            var muted = (Brush)FindResource("DkMutedBrush");
+            var normal = (Brush)FindResource("DkTextBrush");
+            foreach (var pr in results)
+            {
+                var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
+                var right = new TextBlock
+                {
+                    FontSize = 12,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                right.SetValue(DockPanel.DockProperty, Dock.Right);
+                if (pr.AvgMs < 0)
+                {
+                    right.Text = "no reply";
+                    right.Foreground = muted;
+                }
+                else
+                {
+                    right.Text = pr.AvgMs + " ms" +
+                        (pr.LossPct > 0 ? " • " + pr.LossPct + "% loss" : "");
+                    string hex = pr.AvgMs < 50 ? "#4CAF50"
+                        : pr.AvgMs < 120 ? "#FFA726" : "#EF5350";
+                    right.Foreground =
+                        new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                }
+                row.Children.Add(right);
+                row.Children.Add(new TextBlock
+                {
+                    Text = pr.Name,
+                    Foreground = normal,
+                    FontSize = 13
+                });
+                PingResultsPanel.Children.Add(row);
+            }
+            SetStatus("Ping test complete.");
         }
 
         // ---------- Game release feed (right rail) ----------

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using SarahsToolkit.Models;
@@ -384,5 +385,70 @@ namespace SarahsToolkit.Services
                 return snap;
             });
         }
+
+        /// <summary>
+        /// Pings Fortnite's official per-region endpoints (the same ones Epic
+        /// documents for manual ping testing), Hypixel for Minecraft, and two
+        /// DNS baselines. Uses .NET Ping directly so it is fast and
+        /// locale-independent. 4 probes per host, 1.2s timeout each.
+        /// </summary>
+        public Task<List<PingTargetResult>> PingGameServersAsync()
+        {
+            var targets = new (string name, string host)[]
+            {
+                ("Fortnite NA-East", "ping-nae.ds.on.epicgames.com"),
+                ("Fortnite NA-Central", "ping-nac.ds.on.epicgames.com"),
+                ("Fortnite NA-West", "ping-naw.ds.on.epicgames.com"),
+                ("Fortnite Europe", "ping-eu.ds.on.epicgames.com"),
+                ("Fortnite Oceania", "ping-oce.ds.on.epicgames.com"),
+                ("Fortnite Brazil", "ping-br.ds.on.epicgames.com"),
+                ("Fortnite Asia", "ping-asia.ds.on.epicgames.com"),
+                ("Fortnite Middle East", "ping-me.ds.on.epicgames.com"),
+                ("Minecraft Hypixel", "mc.hypixel.net"),
+                ("Baseline Cloudflare", "1.1.1.1"),
+                ("Baseline Google", "8.8.8.8"),
+            };
+            return Task.Run(() =>
+            {
+                var sb = new StringBuilder();
+                sb.Append("$targets = @(");
+                sb.Append(string.Join(",", targets.Select(t =>
+                    "'" + t.name.Replace("'", "''") + "|" + t.host + "'")));
+                sb.Append("); ");
+                sb.Append("$pinger = New-Object System.Net.NetworkInformation.Ping; ");
+                sb.Append("foreach ($t in $targets) { ");
+                sb.Append("$sp = $t.Split('|', 2); $name = $sp[0]; $h = $sp[1]; ");
+                sb.Append("$times = @(); $lost = 0; ");
+                sb.Append("for ($i = 0; $i -lt 4; $i++) { ");
+                sb.Append("try { $r = $pinger.Send($h, 1200); ");
+                sb.Append("if ($r.Status -eq 'Success') { $times += $r.RoundtripTime } else { $lost++ } } ");
+                sb.Append("catch { $lost++ } }; ");
+                sb.Append("$avg = if ($times.Count -gt 0) { [math]::Round(($times | Measure-Object -Average).Average) } else { -1 }; ");
+                sb.Append("Write-Output ($name + '|' + $h + '|' + $avg + '|' + ($lost * 25)) }; ");
+                sb.Append("$pinger.Dispose()");
+                var results = new List<PingTargetResult>();
+                PowerShellResult r = PowerShellRunner.RunScript(sb.ToString(), 3);
+                foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var p = line.Trim().Split('|');
+                    if (p.Length != 4) continue;
+                    long.TryParse(p[2], out long avg);
+                    int.TryParse(p[3], out int loss);
+                    results.Add(new PingTargetResult
+                    {
+                        Name = p[0], Host = p[1], AvgMs = avg, LossPct = loss
+                    });
+                }
+                return results;
+            });
+        }
+    }
+
+    public class PingTargetResult
+    {
+        public string Name = "";
+        public string Host = "";
+        public long AvgMs = -1; // -1 means no reply
+        public int LossPct;
     }
 }

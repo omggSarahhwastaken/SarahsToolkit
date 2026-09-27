@@ -201,6 +201,16 @@
                                 </Border>
                             </UniformGrid>
 
+                            <Border Style="{StaticResource Card}" Margin="0,12,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="TOP MEMORY USAGE" FontSize="11"
+                                               Foreground="{StaticResource DkMutedBrush}" Margin="0,0,0,8"/>
+                                    <StackPanel x:Name="TopProcsPanel">
+                                        <TextBlock Text="…" Style="{StaticResource Muted12}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
                             <Border x:Name="RebootBanner" Style="{StaticResource Card}" Visibility="Collapsed"
                                     BorderBrush="#FFA726" BorderThickness="1" Margin="0,0,0,12">
                                 <StackPanel Orientation="Horizontal">
@@ -435,6 +445,20 @@
                                                        FontSize="12" Foreground="{StaticResource DkMutedBrush}"/>
                                         </StackPanel>
                                     </Grid>
+                                </StackPanel>
+                            </GroupBox>
+                            <GroupBox Header="Game ping test" Margin="0,0,0,12" Padding="10">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <Button Content="Ping game servers" Width="150"
+                                                Style="{StaticResource AccentButton}" Click="PingTest_Click"/>
+                                        <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource Muted12}"
+                                                   TextWrapping="Wrap"
+                                                   Text="Pings Fortnite's official region endpoints plus Hypixel. Lower is better — under 50 ms is great."/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="PingResultsPanel" Margin="0,8,0,0">
+                                        <TextBlock Text="Press “Ping game servers” to test." Style="{StaticResource Muted12}"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </GroupBox>
                             <GroupBox Header="Network rescue" Padding="10">
