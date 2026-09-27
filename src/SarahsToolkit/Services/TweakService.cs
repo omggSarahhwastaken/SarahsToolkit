@@ -67,7 +67,7 @@ namespace SarahsToolkit.Services
                 object v = key.GetValue(name);
                 if (v == null) return null;
                 if (string.Equals(kind, "DWord", StringComparison.OrdinalIgnoreCase))
-                    return Convert.ToInt32(v).ToString();
+                    return Convert.ToUInt32(v).ToString();
                 return v.ToString();
             }
         }
@@ -85,7 +85,7 @@ namespace SarahsToolkit.Services
                     return;
                 }
                 if (string.Equals(op.Kind, "DWord", StringComparison.OrdinalIgnoreCase))
-                    key.SetValue(name, int.Parse(op.Data), RegistryValueKind.DWord);
+                    key.SetValue(name, unchecked((int)uint.Parse(op.Data)), RegistryValueKind.DWord);
                 else
                     key.SetValue(name, op.Data, RegistryValueKind.String);
             }
