@@ -42,6 +42,9 @@
         <SolidColorBrush x:Key="DkAccentDeepBrush" Color="{StaticResource DkAccentDeep}"/>
         <SolidColorBrush x:Key="DkSelectionBrush" Color="{StaticResource DkSelection}"/>
 
+        <!-- Minecraft display font (embedded): title + page headings. Body text stays Segoe UI. -->
+        <FontFamily x:Key="McFont">pack://application:,,,/Fonts/#Minecraft</FontFamily>
+
         <!-- Window -->
         <Style TargetType="Window">
             <Setter Property="Background" Value="{StaticResource DkBgBrush}"/>

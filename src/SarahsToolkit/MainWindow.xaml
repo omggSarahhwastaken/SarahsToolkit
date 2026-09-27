@@ -84,7 +84,8 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel>
-                        <TextBlock x:Name="PageTitle" Text="Home" FontSize="20" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="PageTitle" Text="Home" FontSize="20"
+                                   FontFamily="{StaticResource McFont}" FontStyle="Italic"/>
                         <TextBlock x:Name="PageSubtitle" Text="System overview" FontSize="12"
                                    Foreground="{StaticResource DkMutedBrush}" Margin="0,2,0,0"/>
                     </StackPanel>
@@ -970,7 +971,8 @@
                                            Foreground="{StaticResource DkAccentHoverBrush}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
-                            <TextBlock Text="Sarah's Toolkit" FontSize="28" FontWeight="Bold"/>
+                            <TextBlock Text="Sarah's Toolkit" FontSize="28"
+                                       FontFamily="{StaticResource McFont}" FontWeight="Bold" FontStyle="Italic"/>
                             <TextBlock x:Name="VersionText" Margin="0,4,0,12"
                                        Foreground="{StaticResource DkMutedBrush}" Text="v1.3.0"/>
                             <TextBlock TextWrapping="Wrap"

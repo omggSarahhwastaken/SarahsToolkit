@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>SarahsToolkit</AssemblyName>
     <RootNamespace>SarahsToolkit</RootNamespace>
-    <Version>2.4.0</Version>
+    <Version>2.5.0</Version>
     <Product>Sarah's Toolkit</Product>
     <Description>Sarah's Toolkit - Windows cleanup, debloat and optimization</Description>
     <ApplicationIcon>app.ico</ApplicationIcon>
@@ -35,6 +35,13 @@
     <Content Include="Data\game_releases.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Fonts\Minecraft-Regular.otf" />
+    <Resource Include="Fonts\Minecraft-Italic.otf" />
+    <Resource Include="Fonts\Minecraft-Bold.otf" />
+    <Resource Include="Fonts\Minecraft-BoldItalic.otf" />
   </ItemGroup>
 
 </Project>
