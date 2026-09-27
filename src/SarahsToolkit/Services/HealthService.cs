@@ -42,12 +42,23 @@ namespace SarahsToolkit.Services
                     }
                     if (!File.Exists(xmlPath)) return info;
                     var doc = XDocument.Load(xmlPath);
-                    var battery = doc.Descendants("Battery").FirstOrDefault();
+                    // powercfg wraps the report in a default XML namespace;
+                    // a namespace-blind query matches nothing on real machines.
+                    XNamespace ns = doc.Root != null
+                        ? doc.Root.GetDefaultNamespace() : XNamespace.None;
+                    var battery = doc.Descendants(ns + "Battery").FirstOrDefault()
+                               ?? doc.Descendants("Battery").FirstOrDefault();
                     if (battery == null) return info; // desktop, no battery
                     info.HasBattery = true;
-                    info.DesignCapacityMwh = ParseLong(battery.Element("DesignCapacity")?.Value);
-                    info.FullChargeCapacityMwh = ParseLong(battery.Element("FullChargeCapacity")?.Value);
-                    info.CycleCount = ParseLong(battery.Element("CycleCount")?.Value, -1);
+                    info.DesignCapacityMwh = ParseLong(
+                        (battery.Element(ns + "DesignCapacity") ??
+                         battery.Element("DesignCapacity"))?.Value);
+                    info.FullChargeCapacityMwh = ParseLong(
+                        (battery.Element(ns + "FullChargeCapacity") ??
+                         battery.Element("FullChargeCapacity"))?.Value);
+                    info.CycleCount = ParseLong(
+                        (battery.Element(ns + "CycleCount") ??
+                         battery.Element("CycleCount"))?.Value, -1);
                     if (info.DesignCapacityMwh > 0 && info.FullChargeCapacityMwh > 0)
                         info.HealthPercent = (double)info.FullChargeCapacityMwh /
                                              info.DesignCapacityMwh * 100.0;
@@ -67,6 +78,9 @@ namespace SarahsToolkit.Services
                     var parts = (r.Output ?? "").Trim().Split('|');
                     if (parts.Length == 2)
                     {
+                        // WMI saw a battery: trust it for presence even if the
+                        // powercfg report failed to parse (health may be unknown).
+                        info.HasBattery = true;
                         if (int.TryParse(parts[0].Trim(), out int pct)) info.ChargePercent = pct;
                         info.PowerState = BatteryStatusText(parts[1].Trim());
                     }

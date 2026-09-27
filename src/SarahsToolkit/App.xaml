@@ -395,6 +395,116 @@
             <Setter Property="Foreground" Value="{StaticResource DkMutedBrush}"/>
         </Style>
 
+        <!-- Combo boxes (dark face + black drop-down, white text) -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="Background" Value="{StaticResource DkControlBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="toggle" ClickMode="Press" Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                              RelativeSource={RelativeSource TemplatedParent}}"
+                                          Background="{TemplateBinding Background}"
+                                          BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="bd"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="6" SnapsToDevicePixels="True">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Path Grid.Column="1" x:Name="arrow"
+                                                      Data="M 0,0 L 8,0 L 4,5 Z"
+                                                      Fill="{StaticResource DkMutedBrush}"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Margin="0,0,10,0"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="bd" Property="Background"
+                                                        Value="{StaticResource DkControlHoverBrush}"/>
+                                                <Setter TargetName="arrow" Property="Fill"
+                                                        Value="{StaticResource DkTextBrush}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Left"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              IsHitTestVisible="False"/>
+                            <Popup IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom" AllowsTransparency="True"
+                                   Focusable="False" PopupAnimation="Slide">
+                                <Border Background="{StaticResource DkRailBrush}"
+                                        BorderBrush="{StaticResource DkBorderBrush}"
+                                        BorderThickness="1" CornerRadius="6"
+                                        SnapsToDevicePixels="True"
+                                        MinWidth="{Binding ActualWidth,
+                                            RelativeSource={RelativeSource TemplatedParent}}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <ScrollViewer Margin="3">
+                                        <StackPanel IsItemsHost="True"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource DkMutedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="4" Margin="2"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="bd" Property="Background"
+                                        Value="{StaticResource DkControlHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background"
+                                        Value="{StaticResource DkSelectionBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Tool tips -->
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="{StaticResource DkControlBrush}"/>

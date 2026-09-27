@@ -823,12 +823,12 @@ namespace SarahsToolkit
             _dashboardLoading = true;
             try
             {
-                // Top memory hogs refresh on their own slower cadence so the
-                // 1-second snapshot loop stays light.
-                if ((DateTime.UtcNow - _topProcsAt).TotalSeconds >= 5)
+                // Top process lists refresh on their own slower cadence so the
+                // 1-second snapshot loop stays light (GPU sampling takes ~2s).
+                if ((DateTime.UtcNow - _topProcsAt).TotalSeconds >= 10)
                 {
                     _topProcsAt = DateTime.UtcNow;
-                    _ = RefreshTopProcessesAsync();
+                    _ = RefreshTopProcsAsync();
                 }
                 if (!quiet)
                 {
@@ -840,21 +840,6 @@ namespace SarahsToolkit
 
                 DashCpu.Text = string.IsNullOrWhiteSpace(snap.Cpu) ? "Unknown" : snap.Cpu;
                 DashGpu.Text = string.IsNullOrWhiteSpace(snap.Gpu) ? "Unknown" : snap.Gpu;
-
-                if (snap.RamTotalGb > 0)
-                {
-                    double used = Math.Max(0, snap.RamTotalGb - snap.RamFreeGb);
-                    double pct = used / snap.RamTotalGb * 100;
-                    DashRam.Text = used.ToString("0.0") + " / " + snap.RamTotalGb.ToString("0.0") + " GB used";
-                    DashRamBar.Value = pct;
-                    DashRamSub.Text = snap.RamFreeGb.ToString("0.0") + " GB free";
-                    SetDot(DashRamDot, pct >= 90 ? DotColor.Red : pct >= 75 ? DotColor.Amber : DotColor.Green);
-                }
-                else
-                {
-                    DashRam.Text = "Unknown";
-                    SetDot(DashRamDot, DotColor.Gray);
-                }
 
                 if (snap.DiskTotalGb > 0)
                 {
@@ -922,48 +907,130 @@ namespace SarahsToolkit
             _ = LoadDashboardAsync();
         }
 
-        // ---------- Top memory processes (Home) ----------
+        // ---------- Top processes (Home): memory / CPU / GPU ----------
 
         private DateTime _topProcsAt = DateTime.MinValue;
 
-        private async Task RefreshTopProcessesAsync()
+        private async Task RefreshTopProcsAsync()
         {
-            PowerShellResult r;
+            await Task.WhenAll(RefreshTopMemAsync(), RefreshTopCpuAsync(), RefreshTopGpuAsync());
+        }
+
+        private async Task RefreshTopMemAsync()
+        {
+            List<(string name, double v)> items;
             try
             {
-                r = await Task.Run(() => PowerShellRunner.RunScript(
+                var r = await Task.Run(() => PowerShellRunner.RunScript(
                     "Get-Process -ErrorAction SilentlyContinue | Group-Object ProcessName | " +
                     "ForEach-Object { [pscustomobject]@{ N=$_.Name; MB=[math]::Round((($_.Group | " +
                     "Measure-Object WorkingSet64 -Sum).Sum) / 1MB) } } | " +
                     "Sort-Object MB -Descending | Select-Object -First 6 | " +
                     "ForEach-Object { $_.N + '|' + $_.MB }", 2));
+                items = ParseProcLines(r.Output);
             }
             catch { return; }
-            var items = new List<(string name, double mb)>();
-            foreach (var line in (r.Output ?? "").Split(
+            if (items.Count == 0) return; // keep the old list on failure
+            FillProcPanel(TopMemPanel, items, v =>
+                v >= 1024 ? (v / 1024).ToString("0.0") + " GB" : ((int)v).ToString("N0") + " MB");
+        }
+
+        private async Task RefreshTopCpuAsync()
+        {
+            List<(string name, double v)> items;
+            try
+            {
+                var r = await Task.Run(() => PowerShellRunner.RunScript(
+                    "$c=$env:NUMBER_OF_PROCESSORS; $a=@{}; " +
+                    "Get-Process -ErrorAction SilentlyContinue | ForEach-Object { " +
+                    "$a[$_.Id]=@($_.ProcessName,$_.TotalProcessorTime.TotalMilliseconds) }; " +
+                    "Start-Sleep -Milliseconds 800; " +
+                    "Get-Process -ErrorAction SilentlyContinue | ForEach-Object { " +
+                    "if ($a.ContainsKey($_.Id)) { " +
+                    "$d=$_.TotalProcessorTime.TotalMilliseconds - $a[$_.Id][1]; " +
+                    "if ($d -gt 0) { [pscustomobject]@{ N=$_.ProcessName; P=$d/800/$c*100 } } } } | " +
+                    "Group-Object N | ForEach-Object { [pscustomobject]@{ N=$_.Name; " +
+                    "P=[math]::Round(($_.Group | Measure-Object P -Sum).Sum,1) } } | " +
+                    "Sort-Object P -Descending | Select-Object -First 6 | " +
+                    "ForEach-Object { $_.N + '|' + $_.P }", 2));
+                items = ParseProcLines(r.Output);
+            }
+            catch { return; }
+            if (items.Count == 0) return; // keep the old list on failure
+            FillProcPanel(TopCpuPanel, items, v => v.ToString("0.0") + "%");
+        }
+
+        private bool _topGpuHasData;
+
+        private async Task RefreshTopGpuAsync()
+        {
+            List<(string name, double v)> items;
+            try
+            {
+                var r = await Task.Run(() => PowerShellRunner.RunScript(
+                    "$s=(Get-Counter '\\GPU Engine(*)\\Utilization Percentage' " +
+                    "-SampleInterval 1 -MaxSamples 2 -ErrorAction SilentlyContinue).CounterSamples | " +
+                    "Where-Object { $_.Path -match 'pid_(\\d+)' } | " +
+                    "Group-Object { ([regex]::Match($_.Path,'pid_(\\d+)')).Groups[1].Value } | " +
+                    "ForEach-Object { [pscustomobject]@{ Pid=$_.Name; " +
+                    "Pct=($_.Group | Measure-Object CookedValue -Average).Average } } | " +
+                    "Where-Object { $_.Pct -gt 0.5 } | Sort-Object Pct -Descending | " +
+                    "Select-Object -First 6; $p=@{}; " +
+                    "Get-Process -ErrorAction SilentlyContinue | " +
+                    "ForEach-Object { $p[$_.Id]=$_.ProcessName }; " +
+                    "foreach ($x in $s) { $id=[int]$x.Pid; " +
+                    "if ($p.ContainsKey($id)) { $p[$id] + '|' + [math]::Round($x.Pct,1) } }", 2));
+                items = ParseProcLines(r.Output);
+            }
+            catch { return; }
+            if (items.Count == 0)
+            {
+                if (!_topGpuHasData)
+                {
+                    TopGpuPanel.Children.Clear();
+                    TopGpuPanel.Children.Add(new TextBlock
+                    {
+                        Text = "No per-process GPU data on this machine.",
+                        Style = (Style)FindResource("Muted12")
+                    });
+                }
+                return;
+            }
+            _topGpuHasData = true;
+            FillProcPanel(TopGpuPanel, items, v => v.ToString("0.0") + "%");
+        }
+
+        private static List<(string name, double v)> ParseProcLines(string output)
+        {
+            var items = new List<(string name, double v)>();
+            foreach (var line in (output ?? "").Split(
                 new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 var p = line.Trim().Split('|');
-                if (p.Length == 2 && double.TryParse(p[1], out double mb) && mb > 0)
-                    items.Add((p[0], mb));
+                if (p.Length == 2 && double.TryParse(p[1], out double v) && v > 0)
+                    items.Add((p[0], v));
             }
-            if (items.Count == 0) return; // keep the old list on failure
-            TopProcsPanel.Children.Clear();
-            double max = items.Max(i => i.mb);
+            return items;
+        }
+
+        private void FillProcPanel(StackPanel panel, List<(string name, double v)> items,
+            Func<double, string> format)
+        {
+            panel.Children.Clear();
+            double max = items.Max(i => i.v);
             var muted = (Brush)FindResource("DkMutedBrush");
             var normal = (Brush)FindResource("DkTextBrush");
+            var barStyle = (Style)FindResource("RoundProgress");
             foreach (var item in items)
             {
-                var row = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+                var row = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
                 var top = new DockPanel();
                 var right = new TextBlock
                 {
                     Foreground = muted,
-                    FontSize = 12,
+                    FontSize = 11,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Text = item.mb >= 1024
-                        ? (item.mb / 1024).ToString("0.0") + " GB"
-                        : ((int)item.mb).ToString("N0") + " MB"
+                    Text = format(item.v)
                 };
                 right.SetValue(DockPanel.DockProperty, Dock.Right);
                 top.Children.Add(right);
@@ -971,19 +1038,20 @@ namespace SarahsToolkit
                 {
                     Text = item.name,
                     Foreground = normal,
-                    FontSize = 13
+                    FontSize = 12,
+                    TextTrimming = TextTrimming.CharacterEllipsis
                 });
                 row.Children.Add(top);
                 row.Children.Add(new ProgressBar
                 {
-                    Style = (Style)FindResource("RoundProgress"),
-                    Height = 5,
+                    Style = barStyle,
+                    Height = 4,
                     Minimum = 0,
                     Maximum = 100,
-                    Value = max > 0 ? item.mb / max * 100 : 0,
-                    Margin = new Thickness(0, 4, 0, 0)
+                    Value = max > 0 ? item.v / max * 100 : 0,
+                    Margin = new Thickness(0, 3, 0, 0)
                 });
-                TopProcsPanel.Children.Add(row);
+                panel.Children.Add(row);
             }
         }
 

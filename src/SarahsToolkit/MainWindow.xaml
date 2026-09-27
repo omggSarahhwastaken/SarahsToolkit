@@ -144,23 +144,6 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Ellipse x:Name="DashRamDot" Width="10" Height="10" Fill="#4CAF50"
-                                                 VerticalAlignment="Top" Margin="0,5,10,0"/>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="MEMORY" FontSize="11" Foreground="{StaticResource DkMutedBrush}"/>
-                                            <TextBlock x:Name="DashRam" Text="…" FontSize="14" FontWeight="SemiBold"/>
-                                            <ProgressBar x:Name="DashRamBar" Style="{StaticResource RoundProgress}"
-                                                         Height="6" Margin="0,6,0,0" Minimum="0" Maximum="100"/>
-                                            <TextBlock x:Name="DashRamSub" FontSize="11"
-                                                       Foreground="{StaticResource DkMutedBrush}" Margin="0,4,0,0"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                                <Border Style="{StaticResource Card}" Margin="0,0,12,0">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
                                         <Ellipse x:Name="DashDiskDot" Width="10" Height="10" Fill="#4CAF50"
                                                  VerticalAlignment="Top" Margin="0,5,10,0"/>
                                         <StackPanel Grid.Column="1">
@@ -337,15 +320,35 @@
                                 </Border>
                             </UniformGrid>
 
-                            <Border Style="{StaticResource Card}" Margin="0,12,0,12">
-                                <StackPanel>
-                                    <TextBlock Text="TOP MEMORY USAGE" FontSize="11"
-                                               Foreground="{StaticResource DkMutedBrush}" Margin="0,0,0,8"/>
-                                    <StackPanel x:Name="TopProcsPanel">
-                                        <TextBlock Text="…" Style="{StaticResource Muted12}"/>
+                            <UniformGrid Columns="3" Margin="0,12,0,12">
+                                <Border Style="{StaticResource Card}" Margin="0,0,12,0">
+                                    <StackPanel>
+                                        <TextBlock Text="TOP MEMORY USAGE" FontSize="11"
+                                                   Foreground="{StaticResource DkMutedBrush}" Margin="0,0,0,8"/>
+                                        <StackPanel x:Name="TopMemPanel">
+                                            <TextBlock Text="…" Style="{StaticResource Muted12}"/>
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border>
+                                </Border>
+                                <Border Style="{StaticResource Card}" Margin="0,0,12,0">
+                                    <StackPanel>
+                                        <TextBlock Text="TOP CPU USAGE" FontSize="11"
+                                                   Foreground="{StaticResource DkMutedBrush}" Margin="0,0,0,8"/>
+                                        <StackPanel x:Name="TopCpuPanel">
+                                            <TextBlock Text="…" Style="{StaticResource Muted12}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}" Margin="0,0,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="TOP GPU USAGE" FontSize="11"
+                                                   Foreground="{StaticResource DkMutedBrush}" Margin="0,0,0,8"/>
+                                        <StackPanel x:Name="TopGpuPanel">
+                                            <TextBlock Text="…" Style="{StaticResource Muted12}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
 
                             <Border x:Name="RebootBanner" Style="{StaticResource Card}" Visibility="Collapsed"
                                     BorderBrush="#FFA726" BorderThickness="1" Margin="0,0,0,12">
