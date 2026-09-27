@@ -77,10 +77,25 @@ namespace SarahsToolkit.Services
 
         public Task<PowerShellResult> ListStartupAsync()
         {
+            // Win32_StartupCommand covers the Run/RunOnce registry keys
+            // (HKCU + HKLM) and both Startup folders. Logon scheduled tasks
+            // are enumerated separately, so the list is every auto-starting
+            // app — not just folder shortcuts. Already-disabled scheduled
+            // tasks are excluded here; registry/folder ones are filtered
+            // on the C# side via the StartupApproved keys.
             string script =
                 "$i = 0; " +
                 "Get-CimInstance Win32_StartupCommand -ErrorAction SilentlyContinue | ForEach-Object { " +
                 "Write-Output ($i.ToString() + '|' + $_.Name + '|' + $_.Command + '|' + $_.Location); " +
+                "$i++ }; " +
+                "Get-ScheduledTask -ErrorAction SilentlyContinue | ForEach-Object { " +
+                "$t = $_; if ($t.State -eq 'Disabled') { return }; " +
+                "$logon = $false; foreach ($tr in @($t.Triggers)) { " +
+                "if ($tr.CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger') { $logon = $true; break } }; " +
+                "if (-not $logon) { return }; " +
+                "$a = @($t.Actions)[0]; $cmd = ''; " +
+                "if ($a -ne $null -and $a.Execute) { $cmd = ($a.Execute + ' ' + $a.Arguments).Trim() }; " +
+                "Write-Output ($i.ToString() + '|' + $t.TaskName + '|' + $cmd + '|SCHED:' + $t.TaskPath + $t.TaskName); " +
                 "$i++ }";
             return Task.Run(() => PowerShellRunner.RunScript(script, 2));
         }
@@ -94,16 +109,28 @@ namespace SarahsToolkit.Services
             {
                 string name = (e.Name ?? "").Replace("'", "''");
                 string cmd = (e.Command ?? "").Replace("'", "''");
-                string loc = (e.Location ?? "").Replace("'", "''");
+                var locs = (e.Locations != null && e.Locations.Count > 0)
+                    ? e.Locations : new List<string> { e.Location };
                 sb.Append("$nm = '" + name + "'; ");
-                sb.Append("$loc = '" + loc + "'; ");
-                sb.Append("$rp = $loc -replace '^HKLM', 'HKLM:' -replace '^HKCU', 'HKCU:'; ");
                 sb.Append("New-Item -Path \"$reg\\$nm\" -Force -ErrorAction SilentlyContinue | Out-Null; ");
                 sb.Append("Set-ItemProperty -Path \"$reg\\$nm\" -Name 'Name' -Value $nm -ErrorAction SilentlyContinue; ");
                 sb.Append("Set-ItemProperty -Path \"$reg\\$nm\" -Name 'Command' -Value '" + cmd + "' -ErrorAction SilentlyContinue; ");
-                sb.Append("Set-ItemProperty -Path \"$reg\\$nm\" -Name 'Location' -Value $loc -ErrorAction SilentlyContinue; ");
-                sb.Append("if ($loc -like 'HKLM*' -or $loc -like 'HKCU*') { Remove-ItemProperty -Path $rp -Name $nm -ErrorAction SilentlyContinue; Write-Output ('Disabled: ' + $nm) } ");
-                sb.Append("else { Write-Output ('Skipped (startup-folder shortcut, remove manually): ' + $nm) }; ");
+                sb.Append("Set-ItemProperty -Path \"$reg\\$nm\" -Name 'Location' -Value '" +
+                    string.Join(";", locs).Replace("'", "''") + "' -ErrorAction SilentlyContinue; ");
+                foreach (var loc in locs)
+                {
+                    string l = (loc ?? "").Replace("'", "''");
+                    sb.Append("$loc = '" + l + "'; ");
+                    sb.Append("$rp = $loc -replace '^HKLM', 'HKLM:' -replace '^HKCU', 'HKCU:' -replace '^HKU', 'HKU:'; ");
+                    sb.Append("if ($loc -like 'SCHED:*') { ");
+                    sb.Append("$tp = $loc.Substring(6); $ix = $tp.LastIndexOf('\\'); ");
+                    sb.Append("Disable-ScheduledTask -TaskPath $tp.Substring(0, $ix + 1) -TaskName $tp.Substring($ix + 1) -ErrorAction SilentlyContinue | Out-Null; ");
+                    sb.Append("Write-Output ('Disabled scheduled task: ' + $nm) } ");
+                    sb.Append("elseif ($loc -like 'HKLM*' -or $loc -like 'HKCU*' -or $loc -like 'HKU*') { ");
+                    sb.Append("Remove-ItemProperty -Path $rp -Name $nm -ErrorAction SilentlyContinue; ");
+                    sb.Append("Write-Output ('Disabled: ' + $nm) } ");
+                    sb.Append("else { Write-Output ('Skipped (startup-folder shortcut, remove manually): ' + $nm) }; ");
+                }
             }
             return Task.Run(() => PowerShellRunner.RunScript(sb.ToString(), 2));
         }

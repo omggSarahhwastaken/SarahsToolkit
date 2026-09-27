@@ -2707,6 +2707,10 @@ namespace SarahsToolkit
         {
             try
             {
+                // Scheduled tasks are pre-filtered by the scan (disabled ones
+                // are never emitted), so they always count as enabled here.
+                if (location.StartsWith("SCHED:", StringComparison.OrdinalIgnoreCase))
+                    return false;
                 bool isRegistry = location.StartsWith("HKCU", StringComparison.OrdinalIgnoreCase) ||
                                   location.StartsWith("HKLM", StringComparison.OrdinalIgnoreCase);
                 if (!isRegistry)
@@ -2740,6 +2744,24 @@ namespace SarahsToolkit
             catch { return false; }
         }
 
+        /// <summary>
+        /// WMI reports per-user registry startup locations as HKU\&lt;sid&gt;\...
+        /// Map the current user's SID back to HKCU so the disabled-check and the
+        /// disable flow treat it like any other per-user entry.
+        /// </summary>
+        private static string NormalizeStartupLocation(string location)
+        {
+            try
+            {
+                var sid = System.Security.Principal.WindowsIdentity.GetCurrent()?.User?.Value;
+                if (!string.IsNullOrEmpty(sid) &&
+                    location.StartsWith("HKU\\" + sid, StringComparison.OrdinalIgnoreCase))
+                    return "HKCU" + location.Substring(4 + sid.Length);
+            }
+            catch { }
+            return location;
+        }
+
         private async void StartupManager_Click(object sender, RoutedEventArgs e)
         {
             await RefreshStartupListAsync();
@@ -2754,26 +2776,46 @@ namespace SarahsToolkit
                 var r = await _diag.ListStartupAsync();
                 _startupEntries.Clear();
                 ToolsLog("Idx | Name | Command");
-                int visible = 0, hidden = 0;
+                // Same app registered in several places (HKCU Run, HKLM Run,
+                // Startup folder...) shows once; all locations are remembered
+                // so disabling hits every one of them.
+                var seen = new Dictionary<string, StartupEntry>(StringComparer.OrdinalIgnoreCase);
+                int visible = 0, hidden = 0, merged = 0;
                 foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                 {
                     var parts = line.Split('|');
                     if (parts.Length < 4) continue;
-                    if (IsStartupEntryDisabled(parts[1], parts[3])) { hidden++; continue; }
-                    _startupEntries.Add(new StartupEntry
+                    string name = parts[1].Trim(), command = parts[2].Trim();
+                    if (string.IsNullOrEmpty(name)) continue;
+                    string location = NormalizeStartupLocation(parts[3].Trim());
+                    if (IsStartupEntryDisabled(name, location)) { hidden++; continue; }
+                    string key = name + "\n" + command;
+                    if (seen.TryGetValue(key, out var existing))
+                    {
+                        if (!existing.Locations.Contains(location))
+                            existing.Locations.Add(location);
+                        merged++;
+                        continue;
+                    }
+                    var entry = new StartupEntry
                     {
                         Index = visible,
-                        Name = parts[1],
-                        Command = parts[2],
-                        Location = parts[3]
-                    });
-                    string cmd = parts[2];
+                        Name = name,
+                        Command = command,
+                        Location = location
+                    };
+                    entry.Locations.Add(location);
+                    seen[key] = entry;
+                    _startupEntries.Add(entry);
+                    string cmd = command;
                     if (cmd.Length > 80) cmd = cmd.Substring(0, 80) + "...";
-                    ToolsLog(visible + " | " + parts[1] + " | " + cmd);
+                    ToolsLog(visible + " | " + name + " | " + cmd);
                     visible++;
                 }
                 if (hidden > 0)
                     ToolsLog("(" + hidden + " already-disabled " + (hidden == 1 ? "entry" : "entries") + " hidden)");
+                if (merged > 0)
+                    ToolsLog("(" + merged + " duplicate " + (merged == 1 ? "row" : "rows") + " merged)");
                 if (_startupEntries.Count == 0)
                     ToolsLog("(no startup entries found)");
                 else
