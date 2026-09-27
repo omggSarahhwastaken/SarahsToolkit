@@ -1,0 +1,94 @@
+<Window x:Class="SarahsToolkit.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Sarah's Toolkit" Height="640" Width="940"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel>
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="Ready"/>
+            </StatusBarItem>
+        </StatusBar>
+        <TabControl Margin="10">
+            <TabItem Header="Cleanup">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="QuickCleanButton" Content="Quick Clean" Width="110" Margin="0,0,8,0" Click="QuickClean_Click"/>
+                        <Button x:Name="FullCleanButton" Content="Full Clean" Width="110" Margin="0,0,8,0" Click="FullClean_Click"/>
+                        <Button x:Name="CancelCleanButton" Content="Cancel" Width="80" Click="CancelClean_Click" IsEnabled="False"/>
+                        <TextBlock x:Name="FreedLabel" VerticalAlignment="Center" Margin="16,0,0,0" FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <ProgressBar x:Name="CleanProgress" DockPanel.Dock="Top" Height="16" Margin="0,0,0,8"/>
+                    <ListBox x:Name="CleanLog"/>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Debloat">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Refresh installed" Width="120" Margin="0,0,8,0" Click="RefreshDebloat_Click"/>
+                        <Button Content="Remove selected" Width="120" Click="RemoveDebloat_Click"/>
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" TextWrapping="Wrap" Foreground="Gray"
+                               Text="Only the checked apps below are ever touched. Edge, Copilot, Xbox / Game Bar, OneDrive, Solitaire, Clipchamp, Media Player, Films &amp; TV and Office Hub are never listed and never removed."/>
+                    <ScrollViewer>
+                        <StackPanel x:Name="DebloatPanel"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Optimize">
+                <ScrollViewer Margin="8">
+                    <StackPanel x:Name="OptimizePanel"/>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Customize">
+                <ScrollViewer Margin="8">
+                    <StackPanel x:Name="CustomizePanel"/>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Tools">
+                <ScrollViewer Margin="8">
+                    <StackPanel>
+                        <GroupBox Header="DNS" Margin="0,0,0,8" Padding="8">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Cloudflare" Tag="1.1.1.1,1.0.0.1" Width="100" Margin="0,0,8,0" Click="Dns_Click"/>
+                                <Button Content="Google" Tag="8.8.8.8,8.8.4.4" Width="100" Margin="0,0,8,0" Click="Dns_Click"/>
+                                <Button Content="Quad9" Tag="9.9.9.9,149.112.112.112" Width="100" Margin="0,0,8,0" Click="Dns_Click"/>
+                                <Button Content="OpenDNS" Tag="208.67.222.222,208.67.220.220" Width="100" Click="Dns_Click"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Services" Margin="0,0,0,8" Padding="8">
+                            <StackPanel>
+                                <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,8"
+                                           Text="Disables non-essential background services and telemetry (DiagTrack, Maps, Retail Demo, Fax, smart cards, media sharing, etc.). Print Spooler is included - restore it from here if you use a printer."/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Disable non-essential" Width="150" Margin="0,0,8,0" Click="DisableServices_Click"/>
+                                    <Button Content="Restore to Manual" Width="150" Click="EnableServices_Click"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Maintenance" Margin="0,0,0,8" Padding="8">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="SSD ReTrim" Width="120" Margin="0,0,8,0" Click="ReTrim_Click"/>
+                                <Button Content="Network rescue" Width="120" Click="NetworkRescue_Click"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Updates" Padding="8">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Check for updates" Width="140" Margin="0,0,8,0" Click="CheckUpdates_Click"/>
+                                <TextBlock x:Name="UpdateLabel" VerticalAlignment="Center" Foreground="Gray" Text="Checks this repo's GitHub releases."/>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="About">
+                <StackPanel Margin="16">
+                    <TextBlock Text="Sarah's Toolkit" FontSize="28" FontWeight="Bold"/>
+                    <TextBlock x:Name="VersionText" Margin="0,4,0,12" Foreground="Gray" Text="v1.0.0"/>
+                    <TextBlock TextWrapping="Wrap" Text="Windows cleanup, debloat and optimization. Tabbed, data-driven, and safe by default."/>
+                    <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Foreground="Gray" Text="Runs as administrator. Helper scripts are generated to a temp file, run once, and deleted - nothing is logged or left behind. The debloat list and cleanup behavior are derived from Sarah's Optimizer."/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>
