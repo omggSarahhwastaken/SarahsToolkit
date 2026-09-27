@@ -277,7 +277,7 @@ namespace SarahsToolkit
                 cb.IsEnabled = app.Installed;
                 cb.IsChecked = false;
                 cb.Content = app.Name + (app.Installed ? "" : "  (not installed)");
-                cb.Foreground = app.Installed ? Brushes.Black : Brushes.Gray;
+                cb.Foreground = app.Installed ? Brushes.WhiteSmoke : Brushes.Gray;
             }
             int installed = _debloatApps.Count(a => a.Installed);
             SetStatus(installed + " of " + _debloatApps.Count + " listed apps are installed.");
