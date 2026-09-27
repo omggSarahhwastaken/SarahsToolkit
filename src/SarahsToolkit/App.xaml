@@ -114,22 +114,28 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="bd"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="1,1,1,0"
-                                CornerRadius="4,4,0,0"
-                                Padding="{TemplateBinding Padding}"
-                                Margin="2,0,2,0"
-                                SnapsToDevicePixels="True">
-                            <ContentPresenter ContentSource="Header"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
+                        <StackPanel Margin="2,0,2,0">
+                            <Border x:Name="bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1,1,1,0"
+                                    CornerRadius="4,4,0,0"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter ContentSource="Header"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                            <Rectangle x:Name="accent" Height="2"
+                                       Fill="{StaticResource DkAccentBrush}"
+                                       Visibility="Collapsed"/>
+                        </StackPanel>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="bd" Property="Background"
                                         Value="{StaticResource DkBgBrush}"/>
+                                <Setter TargetName="accent" Property="Visibility"
+                                        Value="Visible"/>
                                 <Setter Property="Foreground"
                                         Value="{StaticResource DkTextBrush}"/>
                             </Trigger>
