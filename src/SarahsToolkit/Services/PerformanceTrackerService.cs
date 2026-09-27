@@ -25,6 +25,17 @@ namespace SarahsToolkit.Services
     {
         public const long MaxLogBytes = 1024 * 1024; // 1 MB hard cap
 
+        /// <summary>When true, temperatures display and log in Fahrenheit.</summary>
+        public bool Fahrenheit { get; set; }
+
+        public string FormatTemp(int tempC)
+        {
+            if (tempC < 0) return "n/a";
+            if (Fahrenheit)
+                return Math.Round(tempC * 9.0 / 5 + 32) + "F";
+            return tempC + "C";
+        }
+
         private static readonly (string proc, string name)[] GameProcs =
         {
             ("FortniteClient-Win64-Shipping", "Fortnite"),
@@ -101,7 +112,7 @@ namespace SarahsToolkit.Services
 
         public void AppendLog(PerfSample s)
         {
-            string temp = s.TempC >= 0 ? s.TempC + "C" : "n/a";
+            string temp = FormatTemp(s.TempC);
             string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") +
                 " | " + s.Game +
                 " | CPU " + s.CpuPct.ToString("0") + "%" +

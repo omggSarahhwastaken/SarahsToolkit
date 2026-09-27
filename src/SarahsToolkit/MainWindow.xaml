@@ -5,7 +5,7 @@
         MinWidth="1120" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource DkBgBrush}">
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="92"/>
             <ColumnDefinition Width="*"/>
@@ -39,7 +39,7 @@
                         <RadioButton x:Name="NavDebloat" Style="{StaticResource NavRailButton}"
                                      Content="Debloat" Tag="&#xE711;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavServices" Style="{StaticResource NavRailButton}"
-                                     Content="Services" Tag="&#xE713;" Checked="Nav_Checked"/>
+                                     Content="Services" Tag="&#xE7C4;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavOptimize" Style="{StaticResource NavRailButton}"
                                      Content="Optimize" Tag="&#xE72C;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavPresets" Style="{StaticResource NavRailButton}"
@@ -56,6 +56,8 @@
                                      Content="Dev" Tag="&#xE73E;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavAbout" Style="{StaticResource NavRailButton}"
                                      Content="About" Tag="&#xE946;" Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavSettings" Style="{StaticResource NavRailButton}"
+                                     Content="Settings" Tag="&#xE713;" Checked="Nav_Checked"/>
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
@@ -454,7 +456,7 @@
                                                 Style="{StaticResource AccentButton}" Click="PingTest_Click"/>
                                         <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource Muted12}"
                                                    TextWrapping="Wrap"
-                                                   Text="Pings Fortnite's official region endpoints plus Hypixel. Lower is better — under 50 ms is great."/>
+                                                   Text="Pings Fortnite's official region endpoints plus Hypixel. Roblox has no ping endpoint, so it measures TCP connect time instead. Lower is better — under 50 ms is great."/>
                                     </StackPanel>
                                     <StackPanel x:Name="PingResultsPanel" Margin="0,8,0,0">
                                         <TextBlock Text="Press “Ping game servers” to test." Style="{StaticResource Muted12}"/>
@@ -632,6 +634,69 @@
                                        Text="Windows cleanup, debloat and optimization. Sidebar-driven, data-driven, and safe by default."/>
                             <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
                                        Text="Runs as administrator. Helper scripts are generated to a temp file, run once, and deleted - nothing is logged or left behind. The debloat list and cleanup behavior are derived from Sarah's Optimizer."/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <Grid x:Name="PageSettings" Visibility="Collapsed">
+                    <ScrollViewer>
+                        <StackPanel Margin="24" MaxWidth="640" HorizontalAlignment="Left">
+                            <GroupBox Header="Appearance" Margin="0,0,0,12" Padding="10">
+                                <StackPanel>
+                                    <TextBlock Text="Interface scale" FontWeight="SemiBold"/>
+                                    <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                               Text="Scales the whole interface up or down. Takes effect immediately."/>
+                                    <ComboBox x:Name="SettingsScaleCombo" Width="160" HorizontalAlignment="Left"
+                                              SelectionChanged="SettingsScale_Changed">
+                                        <ComboBoxItem Content="80%"/>
+                                        <ComboBoxItem Content="90%"/>
+                                        <ComboBoxItem Content="100%"/>
+                                        <ComboBoxItem Content="110%"/>
+                                        <ComboBoxItem Content="125%"/>
+                                        <ComboBoxItem Content="150%"/>
+                                    </ComboBox>
+                                </StackPanel>
+                            </GroupBox>
+                            <GroupBox Header="Behavior" Margin="0,0,0,12" Padding="10">
+                                <StackPanel>
+                                    <CheckBox x:Name="SettingsTrayCheck" Margin="0,2,0,8"
+                                              Content="Minimize to tray when closing the window"
+                                              Checked="SettingsFlag_Changed" Unchecked="SettingsFlag_Changed"/>
+                                    <CheckBox x:Name="SettingsUpdatesCheck" Margin="0,2,0,8"
+                                              Content="Check for updates on launch"
+                                              Checked="SettingsFlag_Changed" Unchecked="SettingsFlag_Changed"/>
+                                    <CheckBox x:Name="SettingsStartupCheck" Margin="0,2,0,8"
+                                              Content="Start with Windows"
+                                              Checked="SettingsStartup_Changed" Unchecked="SettingsStartup_Changed"/>
+                                    <TextBlock Text="Open on" FontWeight="SemiBold" Margin="0,4,0,4"/>
+                                    <ComboBox x:Name="SettingsDefaultPageCombo" Width="200" HorizontalAlignment="Left"
+                                              SelectionChanged="SettingsDefaultPage_Changed">
+                                        <ComboBoxItem Content="Home"/>
+                                        <ComboBoxItem Content="Last page I used"/>
+                                    </ComboBox>
+                                </StackPanel>
+                            </GroupBox>
+                            <GroupBox Header="Performance tracker" Margin="0,0,0,12" Padding="10">
+                                <StackPanel>
+                                    <TextBlock Text="Temperature unit" FontWeight="SemiBold"/>
+                                    <ComboBox x:Name="SettingsTempCombo" Width="160" HorizontalAlignment="Left"
+                                              Margin="0,4,0,0" SelectionChanged="SettingsTemp_Changed">
+                                        <ComboBoxItem Content="Celsius"/>
+                                        <ComboBoxItem Content="Fahrenheit"/>
+                                    </ComboBox>
+                                </StackPanel>
+                            </GroupBox>
+                            <GroupBox Header="Data" Margin="0,0,0,12" Padding="10">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Open settings folder" Margin="0,0,8,0"
+                                                Click="SettingsOpenFolder_Click"/>
+                                        <Button Content="Reset all settings" Click="SettingsReset_Click"/>
+                                    </StackPanel>
+                                    <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                               Text="Settings live in a single settings.json file. No logs, no registry clutter."/>
+                                </StackPanel>
+                            </GroupBox>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

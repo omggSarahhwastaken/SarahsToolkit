@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using SarahsToolkit.Models;
@@ -389,54 +392,74 @@ namespace SarahsToolkit.Services
         /// <summary>
         /// Pings Fortnite's official per-region endpoints (the same ones Epic
         /// documents for manual ping testing), Hypixel for Minecraft, and two
-        /// DNS baselines. Uses .NET Ping directly so it is fast and
-        /// locale-independent. 4 probes per host, 1.2s timeout each.
+        /// DNS baselines with .NET Ping (4 probes per host, 1.2s timeout).
+        /// Roblox publishes no ping endpoint and blocks ICMP, so it is
+        /// measured with TCP connect timing to www.roblox.com:443 instead.
         /// </summary>
-        public Task<List<PingTargetResult>> PingGameServersAsync()
+        public async Task<List<PingTargetResult>> PingGameServersAsync()
         {
-            var targets = new (string name, string host)[]
+            var targets = new (string name, string host, int tcpPort)[]
             {
-                ("Fortnite NA-East", "ping-nae.ds.on.epicgames.com"),
-                ("Fortnite NA-Central", "ping-nac.ds.on.epicgames.com"),
-                ("Fortnite NA-West", "ping-naw.ds.on.epicgames.com"),
-                ("Fortnite Europe", "ping-eu.ds.on.epicgames.com"),
-                ("Fortnite Oceania", "ping-oce.ds.on.epicgames.com"),
-                ("Fortnite Brazil", "ping-br.ds.on.epicgames.com"),
-                ("Fortnite Asia", "ping-asia.ds.on.epicgames.com"),
-                ("Fortnite Middle East", "ping-me.ds.on.epicgames.com"),
-                ("Minecraft Hypixel", "mc.hypixel.net"),
-                ("Baseline Cloudflare", "1.1.1.1"),
-                ("Baseline Google", "8.8.8.8"),
+                ("Fortnite NA-East", "ping-nae.ds.on.epicgames.com", 0),
+                ("Fortnite NA-Central", "ping-nac.ds.on.epicgames.com", 0),
+                ("Fortnite NA-West", "ping-naw.ds.on.epicgames.com", 0),
+                ("Fortnite Europe", "ping-eu.ds.on.epicgames.com", 0),
+                ("Fortnite Oceania", "ping-oce.ds.on.epicgames.com", 0),
+                ("Fortnite Brazil", "ping-br.ds.on.epicgames.com", 0),
+                ("Fortnite Asia", "ping-asia.ds.on.epicgames.com", 0),
+                ("Fortnite Middle East", "ping-me.ds.on.epicgames.com", 0),
+                ("Minecraft Hypixel", "mc.hypixel.net", 0),
+                ("Roblox (TCP)", "www.roblox.com", 443),
+                ("Baseline Cloudflare", "1.1.1.1", 0),
+                ("Baseline Google", "8.8.8.8", 0),
             };
-            return Task.Run(() =>
+            return await Task.Run(() =>
             {
-                var sb = new StringBuilder();
-                sb.Append("$targets = @(");
-                sb.Append(string.Join(",", targets.Select(t =>
-                    "'" + t.name.Replace("'", "''") + "|" + t.host + "'")));
-                sb.Append("); ");
-                sb.Append("$pinger = New-Object System.Net.NetworkInformation.Ping; ");
-                sb.Append("foreach ($t in $targets) { ");
-                sb.Append("$sp = $t.Split('|', 2); $name = $sp[0]; $h = $sp[1]; ");
-                sb.Append("$times = @(); $lost = 0; ");
-                sb.Append("for ($i = 0; $i -lt 4; $i++) { ");
-                sb.Append("try { $r = $pinger.Send($h, 1200); ");
-                sb.Append("if ($r.Status -eq 'Success') { $times += $r.RoundtripTime } else { $lost++ } } ");
-                sb.Append("catch { $lost++ } }; ");
-                sb.Append("$avg = if ($times.Count -gt 0) { [math]::Round(($times | Measure-Object -Average).Average) } else { -1 }; ");
-                sb.Append("Write-Output ($name + '|' + $h + '|' + $avg + '|' + ($lost * 25)) }; ");
-                sb.Append("$pinger.Dispose()");
                 var results = new List<PingTargetResult>();
-                PowerShellResult r = PowerShellRunner.RunScript(sb.ToString(), 3);
-                foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                foreach (var t in targets)
                 {
-                    var p = line.Trim().Split('|');
-                    if (p.Length != 4) continue;
-                    long.TryParse(p[2], out long avg);
-                    int.TryParse(p[3], out int loss);
+                    var times = new List<long>();
+                    int lost = 0;
+                    if (t.tcpPort > 0)
+                    {
+                        for (int i = 0; i < 4; i++)
+                        {
+                            try
+                            {
+                                using (var c = new TcpClient())
+                                {
+                                    var sw = Stopwatch.StartNew();
+                                    bool ok = c.ConnectAsync(t.host, t.tcpPort).Wait(2000);
+                                    sw.Stop();
+                                    if (ok && c.Connected) times.Add(sw.ElapsedMilliseconds);
+                                    else lost++;
+                                }
+                            }
+                            catch { lost++; }
+                        }
+                    }
+                    else
+                    {
+                        using (var p = new Ping())
+                        {
+                            for (int i = 0; i < 4; i++)
+                            {
+                                try
+                                {
+                                    PingReply r = p.Send(t.host, 1200);
+                                    if (r.Status == IPStatus.Success) times.Add(r.RoundtripTime);
+                                    else lost++;
+                                }
+                                catch { lost++; }
+                            }
+                        }
+                    }
                     results.Add(new PingTargetResult
                     {
-                        Name = p[0], Host = p[1], AvgMs = avg, LossPct = loss
+                        Name = t.name,
+                        Host = t.tcpPort > 0 ? t.host + ":" + t.tcpPort : t.host,
+                        AvgMs = times.Count > 0 ? (long)Math.Round(times.Average()) : -1,
+                        LossPct = lost * 25
                     });
                 }
                 return results;

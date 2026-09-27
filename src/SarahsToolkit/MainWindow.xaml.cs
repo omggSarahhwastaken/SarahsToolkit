@@ -32,6 +32,8 @@ namespace SarahsToolkit
         private readonly ToolsService _tools = new ToolsService();
         private readonly UpdateService _updates = new UpdateService();
         private readonly PerformanceTrackerService _perf = new PerformanceTrackerService();
+        private readonly SettingsService _settings = new SettingsService();
+        private bool _applyingSettings;
         private DispatcherTimer _perfTimer;
         private bool _perfSampling;
         private System.Windows.Forms.NotifyIcon _tray;
@@ -90,7 +92,14 @@ namespace SarahsToolkit
                 base.OnClosing(e);
                 return;
             }
-            // Closing the window parks the app in the tray instead of exiting.
+            // Closing the window parks the app in the tray instead of exiting,
+            // unless the user turned that off in Settings.
+            if (!_settings.Settings.MinimizeToTray)
+            {
+                if (_tray != null) { _tray.Dispose(); _tray = null; }
+                base.OnClosing(e);
+                return;
+            }
             e.Cancel = true;
             Hide();
             EnsureTrayIcon();
@@ -222,8 +231,14 @@ namespace SarahsToolkit
             SetStatus("Ready.");
             await RefreshDebloatInstalledAsync();
 
-            // Silent update check on every launch: only speaks up if an update exists.
-            await CheckForUpdatesOnLaunchAsync();
+            // Settings: load, apply, and honor the startup-page choice.
+            _settings.Load();
+            ApplySettings();
+
+            // Silent update check on every launch (unless disabled in Settings):
+            // only speaks up if an update exists.
+            if (_settings.Settings.CheckUpdatesOnLaunch)
+                await CheckForUpdatesOnLaunchAsync();
 
             // Home dashboard: load on launch (Nav_Checked can fire before the pages
             // exist, so it can't be trusted to do the first load) and keep it live
@@ -234,6 +249,12 @@ namespace SarahsToolkit
             _dashTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _dashTimer.Tick += DashTimer_Tick;
             _dashTimer.Start();
+
+            // Open on the user's chosen page.
+            if (_settings.Settings.DefaultPage == "Last" &&
+                !string.IsNullOrEmpty(_settings.Settings.LastPage) &&
+                _settings.Settings.LastPage != "Home")
+                NavigateToPage(_settings.Settings.LastPage);
         }
 
         // ---------- Navigation ----------
@@ -257,6 +278,11 @@ namespace SarahsToolkit
             PageTools.Visibility = Visibility.Collapsed;
             PageDev.Visibility = Visibility.Collapsed;
             PageAbout.Visibility = Visibility.Collapsed;
+            PageSettings.Visibility = Visibility.Collapsed;
+
+            // Remember where the user was, for the "last page" startup option.
+            _settings.Settings.LastPage = rb.Content.ToString();
+            _settings.Save();
 
             switch (rb.Name)
             {
@@ -333,7 +359,160 @@ namespace SarahsToolkit
                     PageTitle.Text = "About";
                     PageSubtitle.Text = "Sarah's Toolkit";
                     break;
+                case "NavSettings":
+                    PageSettings.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Settings";
+                    PageSubtitle.Text = "Appearance and behavior";
+                    break;
             }
+        }
+
+        // ---------- Settings ----------
+
+        private void ApplySettings()
+        {
+            _applyingSettings = true;
+            try
+            {
+                ApplyGuiScale();
+                _perf.Fahrenheit = _settings.Settings.TempFahrenheit;
+                ApplyStartWithWindows();
+
+                SettingsScaleCombo.SelectedIndex = ScaleToIndex(_settings.Settings.GuiScale);
+                SettingsTrayCheck.IsChecked = _settings.Settings.MinimizeToTray;
+                SettingsUpdatesCheck.IsChecked = _settings.Settings.CheckUpdatesOnLaunch;
+                SettingsStartupCheck.IsChecked = _settings.Settings.StartWithWindows;
+                SettingsDefaultPageCombo.SelectedIndex =
+                    _settings.Settings.DefaultPage == "Last" ? 1 : 0;
+                SettingsTempCombo.SelectedIndex =
+                    _settings.Settings.TempFahrenheit ? 1 : 0;
+            }
+            finally { _applyingSettings = false; }
+        }
+
+        private static int ScaleToIndex(double scale)
+        {
+            double[] steps = { 0.8, 0.9, 1.0, 1.1, 1.25, 1.5 };
+            int best = 2;
+            for (int i = 0; i < steps.Length; i++)
+                if (Math.Abs(steps[i] - scale) < Math.Abs(steps[best] - scale)) best = i;
+            return best;
+        }
+
+        private void ApplyGuiScale()
+        {
+            double s = _settings.Settings.GuiScale;
+            if (RootGrid != null)
+                RootGrid.LayoutTransform = new ScaleTransform(s, s);
+        }
+
+        private void ApplyStartWithWindows()
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
+                {
+                    if (key == null) return;
+                    if (_settings.Settings.StartWithWindows)
+                        key.SetValue("SarahsToolkit",
+                            "\"" + Process.GetCurrentProcess().MainModule.FileName + "\"");
+                    else if (key.GetValue("SarahsToolkit") != null)
+                        key.DeleteValue("SarahsToolkit");
+                }
+            }
+            catch { }
+        }
+
+        private void NavigateToPage(string pageName)
+        {
+            RadioButton target;
+            switch (pageName)
+            {
+                case "Cleanup": target = NavCleanup; break;
+                case "Debloat": target = NavDebloat; break;
+                case "Services": target = NavServices; break;
+                case "Optimize": target = NavOptimize; break;
+                case "Presets": target = NavPresets; break;
+                case "Customize": target = NavCustomize; break;
+                case "Network": target = NavNetwork; break;
+                case "Security": target = NavSecurity; break;
+                case "Tools": target = NavTools; break;
+                case "Dev": target = NavDev; break;
+                case "About": target = NavAbout; break;
+                case "Settings": target = NavSettings; break;
+                default: target = NavDashboard; break;
+            }
+            if (target != null) target.IsChecked = true;
+        }
+
+        private void SettingsScale_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_applyingSettings || SettingsScaleCombo.SelectedIndex < 0) return;
+            double[] steps = { 0.8, 0.9, 1.0, 1.1, 1.25, 1.5 };
+            _settings.Settings.GuiScale = steps[SettingsScaleCombo.SelectedIndex];
+            _settings.Save();
+            ApplyGuiScale();
+        }
+
+        private void SettingsFlag_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_applyingSettings) return;
+            if (sender == SettingsTrayCheck)
+                _settings.Settings.MinimizeToTray = SettingsTrayCheck.IsChecked == true;
+            else if (sender == SettingsUpdatesCheck)
+                _settings.Settings.CheckUpdatesOnLaunch = SettingsUpdatesCheck.IsChecked == true;
+            _settings.Save();
+        }
+
+        private void SettingsStartup_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_applyingSettings) return;
+            _settings.Settings.StartWithWindows = SettingsStartupCheck.IsChecked == true;
+            _settings.Save();
+            ApplyStartWithWindows();
+        }
+
+        private void SettingsDefaultPage_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_applyingSettings || SettingsDefaultPageCombo.SelectedIndex < 0) return;
+            _settings.Settings.DefaultPage =
+                SettingsDefaultPageCombo.SelectedIndex == 1 ? "Last" : "Home";
+            _settings.Save();
+        }
+
+        private void SettingsTemp_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_applyingSettings || SettingsTempCombo.SelectedIndex < 0) return;
+            _settings.Settings.TempFahrenheit = SettingsTempCombo.SelectedIndex == 1;
+            _settings.Save();
+            _perf.Fahrenheit = _settings.Settings.TempFahrenheit;
+        }
+
+        private void SettingsOpenFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Directory.CreateDirectory(_settings.FolderPath);
+                Process.Start(new ProcessStartInfo("explorer.exe", _settings.FolderPath)
+                    { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not open the settings folder:\n" + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void SettingsReset_Click(object sender, RoutedEventArgs e)
+        {
+            var res = MessageBox.Show("Reset all settings to their defaults?",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (res != MessageBoxResult.Yes) return;
+            _settings.Settings.StartWithWindows = false;
+            ApplyStartWithWindows();
+            _settings.Reset();
+            ApplySettings();
         }
 
         // ---------- Dashboard ----------
@@ -1828,22 +2007,25 @@ namespace SarahsToolkit
             var excluded = new HashSet<string>(exclusions.Select(DefenderExclusionService.Normalize));
 
             DefenderAppsPanel.Children.Clear();
-            if (apps.Count == 0)
+            var visible = apps.Where(a => !excluded.Contains(DefenderExclusionService.Normalize(a.Path))).ToList();
+            if (visible.Count == 0)
             {
                 DefenderAppsPanel.Children.Add(new TextBlock
                 {
-                    Text = "No known apps detected on this PC.",
+                    Text = apps.Count == 0
+                        ? "No known apps detected on this PC."
+                        : "All detected apps are already excluded.",
                     Foreground = (Brush)FindResource("DkMutedBrush")
                 });
             }
-            foreach (var app in apps)
+            foreach (var app in visible)
             {
-                bool already = excluded.Contains(DefenderExclusionService.Normalize(app.Path));
                 var cb = new CheckBox
                 {
                     Tag = app.Path,
                     Margin = new Thickness(0, 2, 0, 2),
-                    VerticalAlignment = VerticalAlignment.Center
+                    VerticalAlignment = VerticalAlignment.Center,
+                    IsChecked = true
                 };
                 var label = new StackPanel { Orientation = Orientation.Horizontal };
                 label.Children.Add(new TextBlock { Text = app.Name, FontWeight = FontWeights.SemiBold });
@@ -1853,20 +2035,6 @@ namespace SarahsToolkit
                     Foreground = (Brush)FindResource("DkMutedBrush"),
                     TextTrimming = TextTrimming.CharacterEllipsis
                 });
-                if (already)
-                {
-                    label.Children.Add(new TextBlock
-                    {
-                        Text = "  (excluded)",
-                        Foreground = (Brush)FindResource("DkAccentBrush")
-                    });
-                    cb.IsChecked = true;
-                    cb.IsEnabled = false;
-                }
-                else
-                {
-                    cb.IsChecked = true;
-                }
                 cb.Content = label;
                 DefenderAppsPanel.Children.Add(cb);
             }
@@ -1874,9 +2042,11 @@ namespace SarahsToolkit
             DefenderExclusionsList.Items.Clear();
             foreach (string p in exclusions)
                 DefenderExclusionsList.Items.Add(CensorUserName(p));
-            DefenderStatusLabel.Text = apps.Count == 0
-                ? "No known apps found. You can still add folders manually below."
-                : "Found " + apps.Count + " known app(s). Uncheck any you don't want excluded.";
+            DefenderStatusLabel.Text = visible.Count == 0
+                ? (apps.Count == 0
+                    ? "No known apps found. You can still add folders manually below."
+                    : "Everything detected is already excluded. You can still add folders manually below.")
+                : "Found " + visible.Count + " known app(s). Uncheck any you don't want excluded.";
             if (!string.IsNullOrEmpty(err))
                 DefenderStatusLabel.Text = "Could not read current exclusions: " + err;
         }
@@ -2284,7 +2454,7 @@ namespace SarahsToolkit
                 try { _perf.AppendLog(s); } catch { }
                 PerfStatus.Text = "Logging: " + s.Game + " — CPU " + s.CpuPct.ToString("0") +
                     "% • RAM " + s.RamUsedGb.ToString("0.0") + "/" + s.RamTotalGb.ToString("0.0") + " GB" +
-                    (s.TempC >= 0 ? " • " + s.TempC + "C" : "");
+                    (s.TempC >= 0 ? " • " + _perf.FormatTemp(s.TempC) : "");
             }
             catch { }
             finally { _perfSampling = false; }

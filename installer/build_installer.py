@@ -17,13 +17,18 @@ import zipfile
 MAGIC = b"STKINSTL"
 
 
-def make_payload(repo_root):
+def make_payload(repo_root, skip_files=()):
     names = []
     for dirpath, dirnames, filenames in os.walk(repo_root):
         dirnames[:] = [d for d in dirnames if d not in (".git", "bin", "obj")]
         for fn in filenames:
+            # Never embed build leftovers or the installer output itself.
+            if fn in skip_files or fn.endswith(".pdb"):
+                continue
             full = os.path.join(dirpath, fn)
             rel = os.path.relpath(full, repo_root)
+            if rel in skip_files or rel.replace(os.sep, "/") in skip_files:
+                continue
             names.append((full, rel))
     names.sort(key=lambda t: t[1])
     buf = bytearray()
@@ -44,7 +49,10 @@ def main(argv):
     src_c = os.path.join(here, "installer.c")
     exe_tmp = os.path.join(here, "_installer_tmp.exe")
 
-    payload, names = make_payload(repo_root)
+    payload, names = make_payload(repo_root, skip_files={
+        "_installer_tmp.exe", "_installer_tmp.pdb",
+        os.path.basename(out_exe), "SarahsToolkitInstaller_x64.exe",
+    })
     print(f"payload: {len(payload)} bytes, {len(names)} files")
     assert any(n == "SarahsToolkit.sln" for n in names), "solution missing from payload!"
     assert any(n == "src/SarahsToolkit/SarahsToolkit.csproj" for n in names), "csproj missing!"
