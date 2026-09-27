@@ -256,6 +256,7 @@ namespace SarahsToolkit
                     PageTitle.Text = "Tools";
                     PageSubtitle.Text = "Diagnostics and system utilities";
                     RefreshMemoryLabel();
+                    RefreshDefenderPanel();
                     break;
                 case "NavDev":
                     PageDev.Visibility = Visibility.Visible;
@@ -1608,6 +1609,147 @@ namespace SarahsToolkit
             if (failed > 0)
                 MessageBox.Show("Some tweaks failed:\n" + string.Join("\n", errors),
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        private async void RefreshDefenderPanel()
+        {
+            DefenderStatusLabel.Text = "Scanning for installed apps…";
+            var apps = await Task.Run(() => DefenderExclusionService.DetectKnownApps());
+            string err = "";
+            var exclusions = await Task.Run(() => DefenderExclusionService.GetExclusions(out err));
+            var excluded = new HashSet<string>(exclusions.Select(DefenderExclusionService.Normalize));
+
+            DefenderAppsPanel.Children.Clear();
+            if (apps.Count == 0)
+            {
+                DefenderAppsPanel.Children.Add(new TextBlock
+                {
+                    Text = "No known apps detected on this PC.",
+                    Foreground = (Brush)FindResource("DkMutedBrush")
+                });
+            }
+            foreach (var app in apps)
+            {
+                bool already = excluded.Contains(DefenderExclusionService.Normalize(app.Path));
+                var cb = new CheckBox
+                {
+                    Tag = app.Path,
+                    Margin = new Thickness(0, 2, 0, 2),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                var label = new StackPanel { Orientation = Orientation.Horizontal };
+                label.Children.Add(new TextBlock { Text = app.Name, FontWeight = FontWeights.SemiBold });
+                label.Children.Add(new TextBlock
+                {
+                    Text = "  " + CensorUserName(app.Path),
+                    Foreground = (Brush)FindResource("DkMutedBrush"),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+                if (already)
+                {
+                    label.Children.Add(new TextBlock
+                    {
+                        Text = "  (excluded)",
+                        Foreground = (Brush)FindResource("DkAccentBrush")
+                    });
+                    cb.IsChecked = true;
+                    cb.IsEnabled = false;
+                }
+                else
+                {
+                    cb.IsChecked = true;
+                }
+                cb.Content = label;
+                DefenderAppsPanel.Children.Add(cb);
+            }
+
+            DefenderExclusionsList.Items.Clear();
+            foreach (string p in exclusions)
+                DefenderExclusionsList.Items.Add(CensorUserName(p));
+            DefenderStatusLabel.Text = apps.Count == 0
+                ? "No known apps found. You can still add folders manually below."
+                : "Found " + apps.Count + " known app(s). Uncheck any you don't want excluded.";
+            if (!string.IsNullOrEmpty(err))
+                DefenderStatusLabel.Text = "Could not read current exclusions: " + err;
+        }
+
+        private void DefenderRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshDefenderPanel();
+        }
+
+        private async void DefenderExcludeSelected_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = (Button)sender;
+            btn.IsEnabled = false;
+            try
+            {
+                var paths = DefenderAppsPanel.Children.OfType<CheckBox>()
+                    .Where(cb => cb.IsEnabled && cb.IsChecked == true)
+                    .Select(cb => (string)cb.Tag).ToList();
+                if (paths.Count == 0)
+                {
+                    DefenderStatusLabel.Text = "Nothing selected.";
+                    return;
+                }
+                DefenderStatusLabel.Text = "Adding " + paths.Count + " exclusion(s)…";
+                string err = "";
+                bool ok = await Task.Run(() => DefenderExclusionService.TryAddExclusions(paths, out err));
+                if (ok)
+                {
+                    DefenderStatusLabel.Text = "Excluded " + paths.Count + " folder(s). Defender will skip them in real-time scans.";
+                    ToolsLog("Defender exclusions added: " + string.Join(", ", paths.Select(CensorUserName)));
+                }
+                else
+                {
+                    DefenderStatusLabel.Text = "Failed: " + err;
+                    ToolsLog("Defender exclusion FAILED: " + err);
+                }
+                RefreshDefenderPanel();
+            }
+            finally
+            {
+                btn.IsEnabled = true;
+            }
+        }
+
+        private async void DefenderRemoveSelected_Click(object sender, RoutedEventArgs e)
+        {
+            string shown = DefenderExclusionsList.SelectedItem as string;
+            if (string.IsNullOrEmpty(shown))
+            {
+                DefenderStatusLabel.Text = "Select an exclusion to remove.";
+                return;
+            }
+            // The list shows censored paths; re-read the real ones and match by censored form.
+            string err = "";
+            var real = await Task.Run(() => DefenderExclusionService.GetExclusions(out err));
+            string target = real.FirstOrDefault(p => CensorUserName(p) == shown);
+            if (target == null)
+            {
+                DefenderStatusLabel.Text = "Could not match the selected exclusion.";
+                return;
+            }
+            bool ok = await Task.Run(() => DefenderExclusionService.TryRemoveExclusion(target, out err));
+            DefenderStatusLabel.Text = ok ? "Removed exclusion." : "Failed: " + err;
+            ToolsLog((ok ? "Defender exclusion removed: " : "Defender exclusion removal FAILED: ") + CensorUserName(target));
+            RefreshDefenderPanel();
+        }
+
+        private async void DefenderAddCustom_Click(object sender, RoutedEventArgs e)
+        {
+            string path = DefenderCustomPath.Text.Trim().Trim('"');
+            if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
+            {
+                DefenderStatusLabel.Text = "Enter an existing folder path first.";
+                return;
+            }
+            string err = "";
+            bool ok = await Task.Run(() => DefenderExclusionService.TryAddExclusions(new[] { path }, out err));
+            DefenderStatusLabel.Text = ok ? "Excluded." : "Failed: " + err;
+            ToolsLog((ok ? "Defender exclusion added: " : "Defender exclusion FAILED: ") + CensorUserName(path));
+            if (ok) DefenderCustomPath.Text = "";
+            RefreshDefenderPanel();
         }
 
         private async void PurgeMemory_Click(object sender, RoutedEventArgs e)
