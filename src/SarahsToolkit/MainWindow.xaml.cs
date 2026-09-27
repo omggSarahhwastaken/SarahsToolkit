@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,12 +22,17 @@ namespace SarahsToolkit
     {
         private readonly TweakService _tweaks = new TweakService();
         private readonly CleanupService _cleanup = new CleanupService();
+        private readonly DiagnosticsService _diag = new DiagnosticsService();
+        private List<StartupEntry> _startupEntries = new List<StartupEntry>();
         private readonly DebloatService _debloat = new DebloatService();
+        private readonly ServiceOptimizerService _services = new ServiceOptimizerService();
         private readonly ToolsService _tools = new ToolsService();
         private readonly UpdateService _updates = new UpdateService();
 
         private List<TweakDefinition> _tweakDefs = new List<TweakDefinition>();
         private List<DebloatApp> _debloatApps = new List<DebloatApp>();
+        private List<ServiceDefinition> _serviceDefs = new List<ServiceDefinition>();
+        private bool _servicesRefreshed = false;
         private CancellationTokenSource _cleanCts;
         private bool _buildingUi;
 
@@ -101,6 +107,17 @@ namespace SarahsToolkit
             catch (Exception ex)
             {
                 MessageBox.Show("Failed to load debloat list: " + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+
+            try
+            {
+                _serviceDefs = _services.LoadDefinitions();
+                BuildServicesList();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to load service list: " + ex.Message,
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
 
@@ -375,6 +392,144 @@ namespace SarahsToolkit
             await RefreshDebloatInstalledAsync();
         }
 
+        // ---------- Services ----------
+
+        private async void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_servicesRefreshed && ServicesTab.IsSelected)
+            {
+                _servicesRefreshed = true;
+                await RefreshServiceStatesAsync();
+            }
+        }
+
+        private void BuildServicesList()
+        {
+            ServicesPanel.Children.Clear();
+            foreach (var def in _serviceDefs)
+            {
+                var cb = new CheckBox
+                {
+                    Tag = def,
+                    Margin = new Thickness(0, 4, 0, 0),
+                    FontWeight = FontWeights.SemiBold,
+                    IsEnabled = false
+                };
+                cb.Content = def.DisplayName + "  (" + def.Name + ")";
+                ServicesPanel.Children.Add(cb);
+
+                var desc = new TextBlock
+                {
+                    Text = def.Description,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = Brushes.Gray,
+                    Margin = new Thickness(20, 0, 0, 2)
+                };
+                ServicesPanel.Children.Add(desc);
+            }
+        }
+
+        private async void RefreshServices_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshServiceStatesAsync();
+        }
+
+        private async Task RefreshServiceStatesAsync()
+        {
+            SetStatus("Reading service states...");
+            try
+            {
+                await _services.RefreshStatesAsync(_serviceDefs);
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Service check failed: " + ex.Message);
+                return;
+            }
+            int i = 0;
+            foreach (var def in _serviceDefs)
+            {
+                if (i >= ServicesPanel.Children.Count) break;
+                var cb = (CheckBox)ServicesPanel.Children[i++];
+                var desc = (TextBlock)ServicesPanel.Children[i++];
+                cb.IsEnabled = def.Status != "Missing";
+                cb.IsChecked = false;
+                desc.Text = def.Description + "  —  Status: " + def.Status +
+                            ", Startup: " + def.StartType +
+                            (def.Status == "Missing" ? " (not present on this PC)" : "");
+                cb.Foreground = def.StartType == "Disabled" ? Brushes.Gray : Brushes.WhiteSmoke;
+            }
+            SetStatus(_serviceDefs.Count + " services checked.");
+        }
+
+        private List<ServiceDefinition> GetCheckedServices()
+        {
+            var list = new List<ServiceDefinition>();
+            foreach (var child in ServicesPanel.Children)
+            {
+                var cb = child as CheckBox;
+                if (cb != null && cb.IsChecked == true)
+                    list.Add((ServiceDefinition)cb.Tag);
+            }
+            return list;
+        }
+
+        private async void DisableServices_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GetCheckedServices();
+            if (selected.Count == 0)
+            {
+                MessageBox.Show("Tick at least one service first.",
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var confirm = MessageBox.Show(
+                "Disable " + selected.Count + " service(s)? They will be set to Disabled and stopped.\n\n" +
+                string.Join("\n", selected.Select(s => "• " + s.DisplayName)) +
+                "\n\nRestore any of them later with 'Restore selected'.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+            SetStatus("Disabling services...");
+            PowerShellResult r;
+            try { r = await _services.DisableAsync(selected); }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed:\n" + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                SetStatus("Ready.");
+                return;
+            }
+            string line = FirstLineStartingWith(r.Output, "Done=");
+            string changed = line.StartsWith("Done=") ? line.Substring(5) : "?";
+            SetStatus("Service optimization done (" + changed + " changed). Reboot recommended.");
+            await RefreshServiceStatesAsync();
+        }
+
+        private async void RestoreServices_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GetCheckedServices();
+            if (selected.Count == 0)
+            {
+                MessageBox.Show("Tick at least one service first.",
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            SetStatus("Restoring services...");
+            PowerShellResult r;
+            try { r = await _services.RestoreAsync(selected); }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed:\n" + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                SetStatus("Ready.");
+                return;
+            }
+            string line = FirstLineStartingWith(r.Output, "Done=");
+            string changed = line.StartsWith("Done=") ? line.Substring(5) : "?";
+            SetStatus("Services restored (" + changed + " changed). Reboot recommended.");
+            await RefreshServiceStatesAsync();
+        }
+
         // ---------- Tools ----------
 
         private async void Dns_Click(object sender, RoutedEventArgs e)
@@ -395,24 +550,50 @@ namespace SarahsToolkit
             }
         }
 
-        private async void DisableServices_Click(object sender, RoutedEventArgs e)
+        private async void AutoDns_Click(object sender, RoutedEventArgs e)
         {
-            var confirm = MessageBox.Show(
-                "Disable non-essential background services and telemetry?\n\nPrint Spooler is included - use 'Restore to Manual' if you print.",
-                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (confirm != MessageBoxResult.Yes) return;
-            SetStatus("Disabling services...");
-            var r = await _tools.DisableServicesAsync();
-            string line = FirstLineStartingWith(r.Output, "Disabled=");
-            SetStatus(!string.IsNullOrEmpty(line) ? "Service optimization done (" + line + "). Reboot recommended." : "Service optimization done. Reboot recommended.");
+            SetStatus("Pinging DNS providers to find the fastest...");
+            var r = await _tools.AutoSelectDnsAsync();
+            string line = FirstLineStartingWith(r.Output, "DNS auto-selected:");
+            if (string.IsNullOrEmpty(line))
+                line = FirstLineStartingWith(r.Output, "DNS auto-select failed");
+            SetStatus(!string.IsNullOrEmpty(line) ? line : "DNS auto-select finished.");
         }
 
-        private async void EnableServices_Click(object sender, RoutedEventArgs e)
+        private async void SpeedTest_Click(object sender, RoutedEventArgs e)
         {
-            SetStatus("Restoring services...");
-            var r = await _tools.EnableServicesAsync();
-            string line = FirstLineStartingWith(r.Output, "Restored=");
-            SetStatus(!string.IsNullOrEmpty(line) ? "Services restored (" + line + "). Reboot recommended." : "Services restored. Reboot recommended.");
+            var btn = (Button)sender;
+            btn.IsEnabled = false;
+            SpeedLabel.Text = "Testing download speed...";
+            try
+            {
+                double mbps = await Task.Run(async () =>
+                {
+                    using (var client = new HttpClient())
+                    {
+                        client.Timeout = TimeSpan.FromMinutes(2);
+                        var sw = Stopwatch.StartNew();
+                        byte[] data = await client.GetByteArrayAsync(
+                            "https://speed.cloudflare.com/__down?bytes=25000000");
+                        sw.Stop();
+                        return data.Length * 8.0 / sw.Elapsed.TotalSeconds / 1000000.0;
+                    }
+                });
+                string wifi = await Task.Run(() =>
+                {
+                    var r = PowerShellRunner.RunScript(
+                        "(netsh wlan show interfaces) -match 'Signal' | Select-Object -First 1", 1);
+                    var m = Regex.Match(r.Output ?? "", @"(\d+)\s*%");
+                    return m.Success ? m.Groups[1].Value + "%" : null;
+                });
+                SpeedLabel.Text = "Download: " + mbps.ToString("F1") + " Mbps" +
+                    (wifi != null ? ", WiFi signal: " + wifi : " (wired or WiFi info unavailable)");
+            }
+            catch (Exception ex)
+            {
+                SpeedLabel.Text = "Speed test failed: " + ex.Message;
+            }
+            btn.IsEnabled = true;
         }
 
         private async void ReTrim_Click(object sender, RoutedEventArgs e)
@@ -429,9 +610,177 @@ namespace SarahsToolkit
 
         private async void NetworkRescue_Click(object sender, RoutedEventArgs e)
         {
-            SetStatus("Flushing DNS...");
+            var confirm = MessageBox.Show(
+                "Run network rescue? This flushes DNS, resets Winsock and TCP/IP, and renews the DHCP lease. Your connection will drop briefly.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            SetStatus("Running network rescue...");
             var r = await _tools.NetworkRescueAsync();
-            SetStatus(r.Output.Contains("flushed") ? "DNS cache flushed." : "Network rescue attempted.");
+            SetStatus(r.Output.Contains("done") ? "Network rescue done. Reboot recommended." : "Network rescue attempted - check Tools output.");
+            ToolsLog("=== Network rescue ===");
+            ToolsLog((r.Output ?? "").Trim());
+        }
+
+        // ---------- Diagnostics (Tools tab) ----------
+
+        private void ToolsLog(string text)
+        {
+            ToolsOutput.AppendText(DateTime.Now.ToString("HH:mm:ss") + "  " + text + "\r\n");
+            ToolsOutput.ScrollToEnd();
+        }
+
+        private async Task RunToolAsync(string title, Func<Task<PowerShellResult>> run)
+        {
+            SetStatus(title + "...");
+            ToolsLog("=== " + title + " ===");
+            try
+            {
+                var r = await run();
+                string output = (r.Output ?? "").Trim();
+                ToolsLog(string.IsNullOrEmpty(output) ? "(no output)" : output);
+                if (!string.IsNullOrEmpty(r.Error))
+                    ToolsLog("Errors: " + r.Error.Trim());
+            }
+            catch (Exception ex)
+            {
+                ToolsLog("FAILED: " + ex.Message);
+            }
+            SetStatus(title + " finished.");
+        }
+
+        private async void SpecsCheck_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Specs check", () => _diag.SpecsCheckAsync());
+        }
+
+        private async void SpaceAnalyzer_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Space analyzer", () => _diag.SpaceAnalyzerAsync());
+        }
+
+        private async void DriveHealth_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Drive health", () => _diag.DriveHealthAsync());
+        }
+
+        private async void SfcScan_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "Run sfc /scannow? This scans and repairs Windows system files and usually takes 10-20 minutes.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("SFC scan", () => _diag.SfcScanAsync());
+        }
+
+        private async void StartupManager_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshStartupListAsync();
+        }
+
+        private async Task RefreshStartupListAsync()
+        {
+            SetStatus("Reading startup entries...");
+            ToolsLog("=== Startup manager ===");
+            try
+            {
+                var r = await _diag.ListStartupAsync();
+                _startupEntries.Clear();
+                ToolsLog("Idx | Name | Command");
+                foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var parts = line.Split('|');
+                    if (parts.Length < 4) continue;
+                    int idx;
+                    if (!int.TryParse(parts[0], out idx)) continue;
+                    _startupEntries.Add(new StartupEntry
+                    {
+                        Index = idx,
+                        Name = parts[1],
+                        Command = parts[2],
+                        Location = parts[3]
+                    });
+                    string cmd = parts[2];
+                    if (cmd.Length > 80) cmd = cmd.Substring(0, 80) + "...";
+                    ToolsLog(parts[0] + " | " + parts[1] + " | " + cmd);
+                }
+                if (_startupEntries.Count == 0)
+                    ToolsLog("(no startup entries found)");
+                else
+                    ToolsLog("Type indices to disable (e.g. 0,2,3) in the box above and press Disable. A backup is kept under HKCU\\SOFTWARE\\SarahsToolkit\\DisabledStartup.");
+            }
+            catch (Exception ex)
+            {
+                ToolsLog("FAILED: " + ex.Message);
+            }
+            SetStatus("Startup list ready.");
+        }
+
+        private async void DisableStartup_Click(object sender, RoutedEventArgs e)
+        {
+            if (_startupEntries.Count == 0)
+            {
+                MessageBox.Show("Press 'Startup manager' first to list the entries.",
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var selected = new List<StartupEntry>();
+            foreach (var token in StartupIndicesBox.Text.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int idx;
+                if (!int.TryParse(token.Trim(), out idx)) continue;
+                var entry = _startupEntries.Find(x => x.Index == idx);
+                if (entry != null && !selected.Contains(entry)) selected.Add(entry);
+            }
+            if (selected.Count == 0)
+            {
+                MessageBox.Show("No valid indices. Example: 0,2,3",
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var confirm = MessageBox.Show(
+                "Disable " + selected.Count + " startup entr" + (selected.Count == 1 ? "y" : "ies") + "? A backup is kept in the registry.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("Disable startup entries", () => _diag.DisableStartupAsync(selected));
+            await RefreshStartupListAsync();
+        }
+
+        private async void ShaderSweep_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Shader sweep", () => _diag.ShaderSweepAsync());
+        }
+
+        private async void UpdateFixer_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "Reset Windows Update components? This stops update services and renames the SoftwareDistribution and catroot2 folders.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("Update fixer", () => _diag.UpdateFixerAsync());
+        }
+
+        private async void Troubleshoot_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Auto-troubleshoot", () => _diag.TroubleshootAsync());
+        }
+
+        private async void PackageUpdater_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "Update all packages? This runs winget upgrades (10 minute limit) and then Microsoft Store updates.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("Package updater (winget)", () => _diag.PackageUpdaterAsync());
+            await RunToolAsync("Package updater (Store)", () => _diag.StoreUpdaterAsync());
+        }
+
+        private async void SystemMaintenance_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "Run system maintenance? This clears event logs and runs DISM component cleanup (takes a while).",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("System maintenance", () => _diag.SystemMaintenanceAsync());
         }
 
         private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
@@ -507,6 +856,166 @@ namespace SarahsToolkit
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SetStatus("Ready.");
             }
+        }
+
+        // ---------- Dev ----------
+
+        private void DevLogLine(string text)
+        {
+            DevLog.Items.Add(DateTime.Now.ToString("HH:mm:ss") + "  " + text);
+            DevLog.ScrollIntoView(DevLog.Items[DevLog.Items.Count - 1]);
+        }
+
+        private async void DevRunAll_Click(object sender, RoutedEventArgs e)
+        {
+            DevLog.Items.Clear();
+            DevLogLine("Running all checks...");
+            DevValidateData();
+            await DevUpdateCheckAsync();
+            await DevPayloadCheckAsync();
+            await DevEnvCheckAsync();
+            DevLogLine("All checks finished.");
+        }
+
+        private void DevValidateData_Click(object sender, RoutedEventArgs e)
+        {
+            DevValidateData();
+        }
+
+        private void DevValidateData()
+        {
+            DevLogLine("--- Data files ---");
+            try
+            {
+                var tweaks = _tweaks.LoadTweaks();
+                int bad = tweaks.Count(t => string.IsNullOrWhiteSpace(t.Id) ||
+                    string.IsNullOrWhiteSpace(t.Name) || t.Apply == null);
+                DevLogLine((bad == 0 ? "PASS" : "FAIL") + ": tweaks.json — " +
+                    tweaks.Count + " tweaks, " + bad + " invalid");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: tweaks.json — " + ex.Message); }
+
+            try
+            {
+                var cats = _cleanup.LoadCategories();
+                int bad = cats.Count(c => string.IsNullOrWhiteSpace(c.Id) ||
+                    string.IsNullOrWhiteSpace(c.Name) || c.Paths == null);
+                DevLogLine((bad == 0 ? "PASS" : "FAIL") + ": cleanup.json — " +
+                    cats.Count + " categories, " + bad + " invalid");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: cleanup.json — " + ex.Message); }
+
+            try
+            {
+                var apps = _debloat.LoadApps();
+                int bad = apps.Count(a => string.IsNullOrWhiteSpace(a.Id) ||
+                    string.IsNullOrWhiteSpace(a.Name));
+                DevLogLine((bad == 0 ? "PASS" : "FAIL") + ": debloat.json — " +
+                    apps.Count + " apps, " + bad + " invalid");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: debloat.json — " + ex.Message); }
+
+            try
+            {
+                var svcs = _services.LoadDefinitions();
+                int bad = svcs.Count(s => string.IsNullOrWhiteSpace(s.Name) ||
+                    string.IsNullOrWhiteSpace(s.DisplayName));
+                DevLogLine((bad == 0 ? "PASS" : "FAIL") + ": services.json — " +
+                    svcs.Count + " services, " + bad + " invalid");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: services.json — " + ex.Message); }
+        }
+
+        private async void DevUpdateCheck_Click(object sender, RoutedEventArgs e)
+        {
+            await DevUpdateCheckAsync();
+        }
+
+        private async Task DevUpdateCheckAsync()
+        {
+            DevLogLine("--- Update check ---");
+            try
+            {
+                var info = await _updates.CheckForUpdatesAsync();
+                string local = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?";
+                DevLogLine("PASS: local v" + local +
+                    ", manifest v" + (string.IsNullOrEmpty(info.Version) ? "(none)" : info.Version) +
+                    ", update available: " + info.Available);
+                if (!info.Available && !string.IsNullOrEmpty(info.Message))
+                    DevLogLine("INFO: " + info.Message);
+            }
+            catch (Exception ex) { DevLogLine("FAIL: update check — " + ex.Message); }
+        }
+
+        private async void DevPayloadCheck_Click(object sender, RoutedEventArgs e)
+        {
+            await DevPayloadCheckAsync();
+        }
+
+        private async Task DevPayloadCheckAsync()
+        {
+            DevLogLine("--- Update payload ---");
+            try
+            {
+                var info = await _updates.CheckForUpdatesAsync();
+                if (!info.Available || string.IsNullOrEmpty(info.Url))
+                {
+                    DevLogLine("SKIP: no update available, nothing to download");
+                    return;
+                }
+                string dlUrl = info.Url +
+                    (info.Url.Contains("?") ? "&" : "?") +
+                    "t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                using (var client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromMinutes(10);
+                    byte[] bytes = Convert.FromBase64String(await client.GetStringAsync(dlUrl));
+                    bool mz = bytes.Length > 2 && bytes[0] == 'M' && bytes[1] == 'Z';
+                    DevLogLine((mz ? "PASS" : "FAIL") + ": payload decoded, " +
+                        bytes.Length + " bytes, exe header " + (mz ? "OK" : "BAD"));
+                }
+            }
+            catch (Exception ex) { DevLogLine("FAIL: payload — " + ex.Message); }
+        }
+
+        private async void DevEnvCheck_Click(object sender, RoutedEventArgs e)
+        {
+            await DevEnvCheckAsync();
+        }
+
+        private Task DevEnvCheckAsync()
+        {
+            return Task.Run(() =>
+            {
+                Dispatcher.Invoke(new Action(() => DevLogLine("--- Environment ---")));
+                try
+                {
+                    var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                    var principal = new System.Security.Principal.WindowsPrincipal(identity);
+                    bool admin = principal.IsInRole(
+                        System.Security.Principal.WindowsBuiltInRole.Administrator);
+                    Dispatcher.Invoke(new Action(() => DevLogLine(
+                        (admin ? "PASS" : "FAIL") + ": running as administrator: " + admin)));
+                }
+                catch (Exception ex)
+                {
+                    Dispatcher.Invoke(new Action(() => DevLogLine("FAIL: admin check — " + ex.Message)));
+                }
+                Dispatcher.Invoke(new Action(() => DevLogLine(
+                    "INFO: OS " + Environment.OSVersion.Version +
+                    ", 64-bit OS: " + Environment.Is64BitOperatingSystem +
+                    ", CLR " + Environment.Version)));
+                try
+                {
+                    var r = PowerShellRunner.RunScript("$PSVersionTable.PSVersion.ToString()", 1);
+                    Dispatcher.Invoke(new Action(() => DevLogLine(
+                        "INFO: Windows PowerShell " + r.Output.Trim())));
+                }
+                catch (Exception ex)
+                {
+                    Dispatcher.Invoke(new Action(() => DevLogLine("FAIL: PowerShell — " + ex.Message)));
+                }
+            });
         }
 
         // ---------- Helpers ----------
