@@ -1100,26 +1100,38 @@ namespace SarahsToolkit
                 SetStatus("App check failed: " + ex.Message);
                 return;
             }
-            var muted = (Brush)FindResource("DkMutedBrush");
             var normal = (Brush)FindResource("DkTextBrush");
-            int i = 0;
-            foreach (var app in _debloatApps)
+            // Only installed apps are shown at all; anything not installed is hidden.
+            DebloatPanel.Children.Clear();
+            foreach (var app in _debloatApps.Where(a => a.Installed))
             {
-                if (i >= DebloatPanel.Children.Count) break;
-                var cb = (CheckBox)DebloatPanel.Children[i++];
-                cb.IsEnabled = app.Installed;
-                cb.IsChecked = false;
-                cb.Content = app.Name + (app.Installed ? "" : "  (not installed)");
-                cb.Foreground = app.Installed ? normal : muted;
+                DebloatPanel.Children.Add(new CheckBox
+                {
+                    Content = app.Name,
+                    Tag = app,
+                    Margin = new Thickness(0, 2, 0, 2),
+                    Foreground = normal
+                });
             }
             int installed = _debloatApps.Count(a => a.Installed);
-            SetStatus(installed + " of " + _debloatApps.Count + " listed apps are installed.");
+            int hidden = _debloatApps.Count - installed;
+            if (installed == 0)
+            {
+                DebloatPanel.Children.Add(new TextBlock
+                {
+                    Text = "None of the listed bloatware apps are installed. Nothing to remove.",
+                    Foreground = (Brush)FindResource("DkMutedBrush"),
+                    TextWrapping = TextWrapping.Wrap
+                });
+            }
+            SetStatus(installed + " installed app(s) shown" +
+                (hidden > 0 ? ", " + hidden + " not installed (hidden)" : "") + ".");
         }
 
         private async void RemoveDebloat_Click(object sender, RoutedEventArgs e)
         {
             var selected = new List<DebloatApp>();
-            foreach (CheckBox cb in DebloatPanel.Children)
+            foreach (CheckBox cb in DebloatPanel.Children.OfType<CheckBox>())
             {
                 var app = (DebloatApp)cb.Tag;
                 if (cb.IsChecked == true && app.Installed) selected.Add(app);
