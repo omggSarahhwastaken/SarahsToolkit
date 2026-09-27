@@ -1,0 +1,57 @@
+[
+  {
+    "description": "Safe everyday improvements: less telemetry and background activity, snappier menus and windows. Nothing here changes how games or apps behave.",
+    "id": "balanced",
+    "name": "Balanced",
+    "tweaks": [
+      "privacy.telemetry",
+      "privacy.advertisingId",
+      "privacy.tailoredExperiences",
+      "perf.menuDelay",
+      "perf.startupDelay",
+      "perf.transparency",
+      "perf.animations"
+    ]
+  },
+  {
+    "description": "Prioritizes your game for CPU and GPU time, cuts input lag, and removes background recording overhead. Works on NVIDIA, AMD and Intel \u2014 no vendor-specific changes.",
+    "id": "gaming",
+    "name": "Gaming",
+    "tweaks": [
+      "gaming.gameMode",
+      "gaming.gameDVR",
+      "gaming.fullscreenOpt",
+      "gaming.gpuPriority",
+      "gaming.netThrottle",
+      "gaming.mousePrecision",
+      "gaming.hwScheduling",
+      "perf.powerThrottling",
+      "privacy.telemetry"
+    ]
+  },
+  {
+    "description": "Everything in Gaming, plus aggressive cuts to background disk and CPU activity. Fastest feel overall; laptops may run warmer and some visual effects are turned off.",
+    "id": "max-performance",
+    "name": "Max Performance",
+    "tweaks": [
+      "gaming.gameMode",
+      "gaming.gameDVR",
+      "gaming.fullscreenOpt",
+      "gaming.gpuPriority",
+      "gaming.netThrottle",
+      "gaming.mousePrecision",
+      "gaming.hwScheduling",
+      "perf.powerThrottling",
+      "perf.sysMain",
+      "perf.prefetch",
+      "perf.lastAccess",
+      "perf.menuDelay",
+      "perf.startupDelay",
+      "perf.transparency",
+      "perf.animations",
+      "privacy.telemetry",
+      "privacy.advertisingId",
+      "privacy.tailoredExperiences"
+    ]
+  }
+]

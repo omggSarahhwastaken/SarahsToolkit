@@ -56,6 +56,15 @@
                     <StackPanel x:Name="OptimizePanel"/>
                 </ScrollViewer>
             </TabItem>
+            <TabItem x:Name="PresetsTab" Header="Presets">
+                <ScrollViewer Margin="8">
+                    <StackPanel>
+                        <TextBlock Margin="0,0,0,8" TextWrapping="Wrap" Foreground="Gray"
+                                   Text="One-click bundles of the tweaks on the Optimize tab. The rating next to each preset is measured live on this PC: it is the share of the preset's improvements that are not active yet. Every preset works on NVIDIA, AMD and Intel alike."/>
+                        <StackPanel x:Name="PresetsPanel"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <TabItem Header="Customize">
                 <ScrollViewer Margin="8">
                     <StackPanel x:Name="CustomizePanel"/>

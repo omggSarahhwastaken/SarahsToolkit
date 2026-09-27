@@ -30,6 +30,10 @@ namespace SarahsToolkit
         private readonly UpdateService _updates = new UpdateService();
 
         private List<TweakDefinition> _tweakDefs = new List<TweakDefinition>();
+        private List<PresetDefinition> _presetDefs = new List<PresetDefinition>();
+        private readonly PresetService _presets = new PresetService();
+        private readonly Dictionary<string, TextBlock> _presetRatingLabels =
+            new Dictionary<string, TextBlock>();
         private List<DebloatApp> _debloatApps = new List<DebloatApp>();
         private List<ServiceDefinition> _serviceDefs = new List<ServiceDefinition>();
         private bool _servicesRefreshed = false;
@@ -96,6 +100,17 @@ namespace SarahsToolkit
             catch (Exception ex)
             {
                 MessageBox.Show("Failed to load tweaks: " + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+
+            try
+            {
+                _presetDefs = _presets.LoadPresets();
+                BuildPresetsTab();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to load presets: " + ex.Message,
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
 
@@ -212,6 +227,144 @@ namespace SarahsToolkit
                 MessageBox.Show("Failed to change setting:\n" + ex.Message,
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        }
+
+        // ---------- Presets ----------
+
+        private void BuildPresetsTab()
+        {
+            PresetsPanel.Children.Clear();
+            _presetRatingLabels.Clear();
+            foreach (var preset in _presetDefs)
+            {
+                var group = new GroupBox
+                {
+                    Header = preset.Name,
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Padding = new Thickness(8)
+                };
+                var stack = new StackPanel();
+                stack.Children.Add(new TextBlock
+                {
+                    Text = preset.Description,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = Brushes.Gray,
+                    Margin = new Thickness(0, 0, 0, 4),
+                    FontSize = 12
+                });
+
+                var row = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(0, 0, 0, 4)
+                };
+                var ratingLabel = new TextBlock
+                {
+                    FontWeight = FontWeights.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                row.Children.Add(ratingLabel);
+                var applyBtn = new Button
+                {
+                    Content = "Apply preset",
+                    Width = 100,
+                    Margin = new Thickness(12, 0, 0, 0),
+                    Tag = preset
+                };
+                applyBtn.Click += PresetApply_Click;
+                row.Children.Add(applyBtn);
+                stack.Children.Add(row);
+
+                if (PresetNeedsReboot(preset))
+                {
+                    stack.Children.Add(new TextBlock
+                    {
+                        Text = "Restart Windows afterwards for full effect.",
+                        Foreground = Brushes.Gray,
+                        FontSize = 12
+                    });
+                }
+
+                group.Content = stack;
+                PresetsPanel.Children.Add(group);
+                _presetRatingLabels[preset.Id] = ratingLabel;
+            }
+            RefreshPresetRatings();
+        }
+
+        private bool PresetNeedsReboot(PresetDefinition preset)
+        {
+            return (preset.Tweaks ?? Enumerable.Empty<string>())
+                .Select(id => _tweakDefs.FirstOrDefault(t => t.Id == id))
+                .Any(tw => tw != null && tw.RequiresReboot);
+        }
+
+        private void RefreshPresetRatings()
+        {
+            if (_presetRatingLabels.Count == 0) return;
+            foreach (var preset in _presetDefs)
+            {
+                if (!_presetRatingLabels.TryGetValue(preset.Id, out var label)) continue;
+                label.Text = ImpactRatingText(_presets.Evaluate(preset, _tweakDefs, _tweaks));
+            }
+        }
+
+        // The rating is measured live on this PC: the share of the preset's
+        // improvements that are not active yet. More pending = more it helps.
+        private static string ImpactRatingText(PresetImpact impact)
+        {
+            if (impact.Measurable == 0)
+                return "☆☆☆☆☆  Can't measure on this PC";
+            if (impact.Pending == 0)
+                return "✓ Already applied — nothing to gain right now";
+            double frac = (double)impact.Pending / impact.Measurable;
+            string stars = frac >= 0.8 ? "★★★★★"
+                : frac >= 0.6 ? "★★★★☆"
+                : frac >= 0.4 ? "★★★☆☆"
+                : frac >= 0.2 ? "★★☆☆☆"
+                : "★☆☆☆☆";
+            string level = frac >= 0.8 ? "very high impact"
+                : frac >= 0.6 ? "high impact"
+                : frac >= 0.4 ? "moderate impact"
+                : frac >= 0.2 ? "low impact"
+                : "minimal impact";
+            return stars + "  " + impact.Pending + " of " + impact.Measurable +
+                " changes pending — " + level;
+        }
+
+        private void PresetApply_Click(object sender, RoutedEventArgs e)
+        {
+            var preset = (PresetDefinition)((Button)sender).Tag;
+            var impact = _presets.Evaluate(preset, _tweakDefs, _tweaks);
+            if (impact.Pending == 0)
+            {
+                SetStatus(preset.Name + " preset is already fully applied.");
+                return;
+            }
+            bool needsReboot = PresetNeedsReboot(preset);
+            var confirm = MessageBox.Show(
+                "Apply the " + preset.Name + " preset?\n\nThis will change " +
+                impact.Pending + " setting(s)." +
+                (needsReboot ? "\n\nRestart Windows afterwards for full effect." : ""),
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            int applied = 0, failed = 0;
+            foreach (string id in preset.Tweaks ?? Enumerable.Empty<string>())
+            {
+                var tw = _tweakDefs.FirstOrDefault(t => t.Id == id);
+                if (tw == null) continue;
+                if (_tweaks.GetState(tw) != TweakState.NotApplied) continue;
+                try { _tweaks.Apply(tw); applied++; }
+                catch { failed++; }
+            }
+            SetStatus(preset.Name + " preset: " + applied + " setting(s) applied" +
+                (failed > 0 ? ", " + failed + " failed." : ".") +
+                (needsReboot ? " Restart Windows for full effect." : ""));
+            // Re-sync the Optimize/Customize checkboxes and the ratings.
+            BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
+            BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
+            RefreshPresetRatings();
         }
 
         // ---------- Cleanup ----------
@@ -426,6 +579,10 @@ namespace SarahsToolkit
             {
                 _servicesRefreshed = true;
                 await RefreshServiceStatesAsync();
+            }
+            if (PresetsTab != null && PresetsTab.IsSelected)
+            {
+                RefreshPresetRatings();
             }
         }
 
@@ -1013,6 +1170,21 @@ namespace SarahsToolkit
                     svcs.Count + " services, " + bad + " invalid");
             }
             catch (Exception ex) { DevLogLine("FAIL: services.json — " + ex.Message); }
+
+            try
+            {
+                var presets = _presets.LoadPresets();
+                var tweakIds = new HashSet<string>(_tweakDefs.Select(t => t.Id));
+                int bad = presets.Count(p => string.IsNullOrWhiteSpace(p.Id) ||
+                    string.IsNullOrWhiteSpace(p.Name) || p.Tweaks == null);
+                int dangling = presets
+                    .SelectMany(p => p.Tweaks ?? Enumerable.Empty<string>())
+                    .Count(id => !tweakIds.Contains(id));
+                DevLogLine(((bad == 0 && dangling == 0) ? "PASS" : "FAIL") +
+                    ": presets.json — " + presets.Count + " presets, " +
+                    bad + " invalid, " + dangling + " dangling tweak refs");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: presets.json — " + ex.Message); }
         }
 
         private async void DevUpdateCheck_Click(object sender, RoutedEventArgs e)
