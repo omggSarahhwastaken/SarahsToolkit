@@ -255,6 +255,7 @@ namespace SarahsToolkit
                     PageTools.Visibility = Visibility.Visible;
                     PageTitle.Text = "Tools";
                     PageSubtitle.Text = "Diagnostics and system utilities";
+                    RefreshMemoryLabel();
                     break;
                 case "NavDev":
                     PageDev.Visibility = Visibility.Visible;
@@ -1530,6 +1531,54 @@ namespace SarahsToolkit
         private async void SpecsCheck_Click(object sender, RoutedEventArgs e)
         {
             await RunToolAsync("Specs check", () => _diag.SpecsCheckAsync());
+        }
+
+        private void RefreshMemoryLabel()
+        {
+            try
+            {
+                ulong avail = MemoryService.GetAvailableBytes();
+                MemoryAvailLabel.Text = "Available: " + MemoryService.FormatGb(avail);
+            }
+            catch
+            {
+                MemoryAvailLabel.Text = "Available: —";
+            }
+        }
+
+        private async void PurgeMemory_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = (Button)sender;
+            btn.IsEnabled = false;
+            try
+            {
+                ulong before = MemoryService.GetAvailableBytes();
+                MemoryAvailLabel.Text = "Available: " + MemoryService.FormatGb(before) + " — purging…";
+                SetStatus("Purging standby cache...");
+                string err = "";
+                bool ok = await Task.Run(() => MemoryService.TryPurgeStandbyList(out err));
+                ulong after = MemoryService.GetAvailableBytes();
+                MemoryAvailLabel.Text = "Available: " + MemoryService.FormatGb(after);
+                if (ok)
+                {
+                    double freedGb = Math.Max(0, (after - before) / 1073741824.0);
+                    string msg = "Purged the standby cache — freed " + freedGb.ToString("0.0") + " GB (" +
+                        MemoryService.FormatGb(before) + " → " + MemoryService.FormatGb(after) + " available).";
+                    MemoryResultLabel.Text = msg;
+                    ToolsLog("Memory purge: " + msg);
+                    SetStatus("Memory purge finished.");
+                }
+                else
+                {
+                    MemoryResultLabel.Text = "Purge failed: " + err;
+                    ToolsLog("Memory purge FAILED: " + err);
+                    SetStatus("Memory purge failed.");
+                }
+            }
+            finally
+            {
+                btn.IsEnabled = true;
+            }
         }
 
         private async void SpaceAnalyzer_Click(object sender, RoutedEventArgs e)

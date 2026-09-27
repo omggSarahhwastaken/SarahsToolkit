@@ -469,6 +469,19 @@
                                     <Button Content="Delete restore points" Width="140" Margin="0,0,8,8" Click="DeleteRestorePoints_Click"/>
                                 </WrapPanel>
                             </GroupBox>
+                            <GroupBox Header="Memory" Margin="0,0,0,10" Padding="10">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Button Content="Purge standby cache" Width="150" Margin="0,0,12,0"
+                                                Click="PurgeMemory_Click"/>
+                                        <TextBlock x:Name="MemoryAvailLabel" VerticalAlignment="Center"
+                                                   Text="Available: —"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="MemoryResultLabel" Style="{StaticResource Muted12}"
+                                               TextWrapping="Wrap"
+                                               Text="Drops Windows' standby file cache — the leftovers it keeps 'just in case'. Your apps keep their memory; only cached file data is freed, the same stuff Windows discards on its own when RAM is actually needed."/>
+                                </StackPanel>
+                            </GroupBox>
                             <GroupBox Header="Windows" Margin="0,0,0,10" Padding="10">
                                 <StackPanel>
                                     <WrapPanel>
