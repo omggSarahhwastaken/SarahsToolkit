@@ -31,6 +31,10 @@
 #include <softpub.h>
 #include <wincrypt.h>
 
+#ifndef CERT_NAME_DN_TYPE
+#define CERT_NAME_DN_TYPE 6
+#endif
+
 #define APP_DISPLAY_NAME    "Sarah's Toolkit"
 #define APP_DIR_NAME        "SarahsToolkit"
 #define APP_EXE_NAME        "SarahsToolkit.exe"
@@ -405,6 +409,8 @@ static int VerifyMicrosoftSignature(const char *path) {
     CERT_INFO ci;
     PCCERT_CONTEXT cc = NULL;
     char name[256] = { 0 };
+    char subjDN[512] = { 0 };
+    char issuerDN[512] = { 0 };
     int ok = 0;
 
     if (!MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, MAX_PATH))
@@ -447,11 +453,20 @@ static int VerifyMicrosoftSignature(const char *path) {
                                             X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
                                             0, CERT_FIND_SUBJECT_CERT, &ci, NULL);
             if (cc) {
+                /* Microsoft signs the .NET SDK with a cert whose simple
+                 * display name is just ".NET", so check the full subject
+                 * and issuer for Microsoft instead of the display name. */
                 if (CertGetNameStringA(cc, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0,
                                        NULL, name, sizeof(name)) > 1) {
                     printf("  Signed by: %s\n", name);
-                    ok = (strcmp(name, "Microsoft Corporation") == 0);
                 }
+                CertGetNameStringA(cc, CERT_NAME_DN_TYPE, 0,
+                                   NULL, subjDN, sizeof(subjDN));
+                CertGetNameStringA(cc, CERT_NAME_DN_TYPE, CERT_NAME_ISSUER_FLAG,
+                                   NULL, issuerDN, sizeof(issuerDN));
+                ok = (strstr(subjDN, "Microsoft Corporation") != NULL) ||
+                     (strstr(subjDN, "Microsoft") != NULL &&
+                      strstr(issuerDN, "Microsoft") != NULL);
                 CertFreeCertificateContext(cc);
             }
         }
@@ -460,8 +475,11 @@ static int VerifyMicrosoftSignature(const char *path) {
     if (hMsg) CryptMsgClose(hMsg);
     if (hStore) CertCloseStore(hStore, 0);
 
-    if (!ok)
-        printf("  Signer is not Microsoft Corporation. Aborting for safety.\n");
+    if (!ok) {
+        printf("  Subject: %s\n", subjDN[0] ? subjDN : "(unknown)");
+        printf("  Issuer:  %s\n", issuerDN[0] ? issuerDN : "(unknown)");
+        printf("  Signer is not Microsoft. Aborting for safety.\n");
+    }
     return ok;
 }
 
