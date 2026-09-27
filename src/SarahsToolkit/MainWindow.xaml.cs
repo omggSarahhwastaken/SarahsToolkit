@@ -783,6 +783,64 @@ namespace SarahsToolkit
             await RunToolAsync("System maintenance", () => _diag.SystemMaintenanceAsync());
         }
 
+        // ---------- Extra cleanup (Tools, not Cleanup) ----------
+
+        private async void EmptyRecycleBin_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "Empty the Recycle Bin? This cannot be undone.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("Empty Recycle Bin", () => _diag.EmptyRecycleBinAsync());
+        }
+
+        private async void ClearCrashDumps_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Clear crash dumps", () => _diag.ClearCrashDumpsAsync());
+        }
+
+        private async void ClearGameLogs_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Clear game logs & data", () => _diag.ClearGameLogsAsync());
+        }
+
+        private async void RemoveWindowsOld_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "Remove Windows.old? This permanently deletes the previous Windows installation and kills the 10-day rollback option.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("Remove Windows.old", () => _diag.RemoveWindowsOldAsync());
+        }
+
+        private async void RemoveDriverLeftovers_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "Remove driver installer leftovers (C:\\AMD, C:\\NVIDIA, C:\\Intel)? These are installer extracts, not live drivers.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("Remove driver leftovers", () => _diag.RemoveDriverLeftoversAsync());
+        }
+
+        private async void DeleteRestorePoints_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "Delete ALL system restore points? You will lose the ability to roll back to an earlier state.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("Delete restore points", () => _diag.DeleteRestorePointsAsync());
+        }
+
+        private async void ResetStoreCache_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Reset Store cache", () => _diag.ResetStoreCacheAsync());
+        }
+
+        private async void CrashHistory_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Crash history", () => _diag.CrashHistoryAsync());
+        }
+
         private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
         {
             SetStatus("Checking for updates...");
