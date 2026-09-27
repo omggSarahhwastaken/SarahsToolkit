@@ -68,7 +68,9 @@ namespace SarahsToolkit.Services
             sb.Append("if (-not (Test-Path $exe)) { throw 'speedtest.exe missing after extraction' }; ");
             sb.Append("Write-Output 'PROGRESS|Finding best server and running test (about 30 seconds)...'; ");
             sb.Append("$out = & $exe --accept-license --accept-gdpr --format=json --progress=no 2>$null; ");
-            sb.Append("$res = ($out -join \"`n\") | ConvertFrom-Json -ErrorAction Stop; ");
+            sb.Append("$all = @(($out -join \"`n\") | ConvertFrom-Json -ErrorAction Stop); ");
+            sb.Append("$res = @($all) | Where-Object { $_.type -eq 'result' } | Select-Object -First 1; ");
+            sb.Append("if (-not $res -or -not $res.download -or -not $res.upload) { $m = @($all | Where-Object { $_.message } | Select-Object -First 1).message; if (-not $m) { $m = 'no usable result returned' }; throw ('Speedtest error: ' + $m) }; ");
             sb.Append("$down = [Math]::Round($res.download.bandwidth * 8 / 1e6, 1); ");
             sb.Append("$up = [Math]::Round($res.upload.bandwidth * 8 / 1e6, 1); ");
             sb.Append("$ping = [Math]::Round($res.ping.latency, 1); ");
