@@ -467,7 +467,8 @@ namespace SarahsToolkit
 
         private async Task PromptAndInstallUpdateAsync(UpdateInfo info)
         {
-            string msg = "Version " + info.Version + " is available." +
+            string msg = "Version " + info.Version + " is available" +
+                (string.IsNullOrWhiteSpace(info.LocalVersion) ? "" : " (you're on v" + info.LocalVersion + ")") + "." +
                 (string.IsNullOrWhiteSpace(info.Notes) ? "" : "\n\n" + info.Notes) +
                 "\n\nDownload and install it now?";
             var go = MessageBox.Show(msg, "Sarah's Toolkit - Update available",
@@ -483,12 +484,17 @@ namespace SarahsToolkit
                 {
                     client.DefaultRequestHeaders.UserAgent.ParseAdd("SarahsToolkit");
                     client.Timeout = TimeSpan.FromMinutes(10);
+                    // Cache-buster: the installer URL sits behind a CDN that can
+                    // otherwise keep serving the previous version's bytes.
+                    string dlUrl = info.Url +
+                        (info.Url.Contains("?") ? "&" : "?") +
+                        "t=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     // The installer is hosted base64-encoded in the gist (gists are text-only).
                     byte[] bytes;
                     if (string.Equals(info.Encoding, "base64", StringComparison.OrdinalIgnoreCase))
-                        bytes = Convert.FromBase64String(await client.GetStringAsync(info.Url));
+                        bytes = Convert.FromBase64String(await client.GetStringAsync(dlUrl));
                     else
-                        bytes = await client.GetByteArrayAsync(info.Url);
+                        bytes = await client.GetByteArrayAsync(dlUrl);
                     File.WriteAllBytes(tmp, bytes);
                 }
                 SetStatus("Launching installer...");
