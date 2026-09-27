@@ -75,7 +75,7 @@
                         <GroupBox Header="Updates" Padding="8">
                             <StackPanel Orientation="Horizontal">
                                 <Button Content="Check for updates" Width="140" Margin="0,0,8,0" Click="CheckUpdates_Click"/>
-                                <TextBlock x:Name="UpdateLabel" VerticalAlignment="Center" Foreground="Gray" Text="Checks this repo's GitHub releases."/>
+                                <TextBlock x:Name="UpdateLabel" VerticalAlignment="Center" Foreground="Gray" Text="Checks for updates on launch and on demand."/>
                             </StackPanel>
                         </GroupBox>
                     </StackPanel>
