@@ -231,6 +231,32 @@ namespace SarahsToolkit
             if (_cleanCts != null) _cleanCts.Cancel();
         }
 
+        // ---------- Copy buttons (paste output into Discord) ----------
+
+        private void CopyCleanLog_Click(object sender, RoutedEventArgs e)
+        {
+            CopyItemsToClipboard(CleanLog.Items);
+        }
+
+        private void CopyToolsOutput_Click(object sender, RoutedEventArgs e)
+        {
+            if (!string.IsNullOrEmpty(ToolsOutput.Text))
+                Clipboard.SetText(ToolsOutput.Text);
+        }
+
+        private void CopyDevLog_Click(object sender, RoutedEventArgs e)
+        {
+            CopyItemsToClipboard(DevLog.Items);
+        }
+
+        private void CopyItemsToClipboard(System.Collections.IList items)
+        {
+            var lines = items.Cast<object>().Select(o => o == null ? "" : o.ToString());
+            string text = string.Join("\r\n", lines);
+            if (!string.IsNullOrEmpty(text))
+                Clipboard.SetText(text);
+        }
+
         private async Task RunClean(bool quickOnly)
         {
             var cats = _cleanup.LoadCategories().Where(c => !quickOnly || c.QuickClean).ToList();

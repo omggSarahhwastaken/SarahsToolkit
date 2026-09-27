@@ -17,6 +17,7 @@
                         <Button x:Name="QuickCleanButton" Content="Quick Clean" Width="110" Margin="0,0,8,0" Click="QuickClean_Click"/>
                         <Button x:Name="FullCleanButton" Content="Full Clean" Width="110" Margin="0,0,8,0" Click="FullClean_Click"/>
                         <Button x:Name="CancelCleanButton" Content="Cancel" Width="80" Click="CancelClean_Click" IsEnabled="False"/>
+                        <Button Content="Copy log" Width="80" Margin="8,0,0,0" Click="CopyCleanLog_Click"/>
                         <TextBlock x:Name="FreedLabel" VerticalAlignment="Center" Margin="16,0,0,0" FontWeight="SemiBold"/>
                     </StackPanel>
                     <ProgressBar x:Name="CleanProgress" DockPanel.Dock="Top" Height="16" Margin="0,0,0,8"/>
@@ -140,7 +141,10 @@
                                            Text="The app checks for updates on launch. SFC scan and package updates can take a while."/>
                             </StackPanel>
                         </GroupBox>
-                        <TextBlock Text="Output" Foreground="Gray" Margin="0,0,0,4"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Output" Foreground="Gray" VerticalAlignment="Center"/>
+                            <Button Content="Copy output" Width="95" Margin="8,0,0,0" Click="CopyToolsOutput_Click"/>
+                        </StackPanel>
                     </StackPanel>
                     <TextBox x:Name="ToolsOutput" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
@@ -155,6 +159,7 @@
                         <Button Content="Update check test" Width="130" Margin="0,0,8,0" Click="DevUpdateCheck_Click"/>
                         <Button Content="Payload test" Width="110" Margin="0,0,8,0" Click="DevPayloadCheck_Click"/>
                         <Button Content="Environment check" Width="130" Click="DevEnvCheck_Click"/>
+                        <Button Content="Copy log" Width="80" Margin="8,0,0,0" Click="CopyDevLog_Click"/>
                     </StackPanel>
                     <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" TextWrapping="Wrap" Foreground="Gray"
                                Text="Validation suite for the app itself: data files, the update pipeline, and the runtime environment. Nothing here changes your system."/>
