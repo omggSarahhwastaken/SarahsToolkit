@@ -104,13 +104,36 @@
                 <Grid x:Name="PageDashboard" Visibility="Visible">
                     <ScrollViewer>
                         <StackPanel Margin="20">
+                            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                                        <TextBlock x:Name="HealthScoreNum" Text="…" FontSize="40" FontWeight="Bold"
+                                                   VerticalAlignment="Center"/>
+                                        <StackPanel VerticalAlignment="Center" Margin="10,0,0,0">
+                                            <TextBlock Text="/100" FontSize="13" Foreground="{StaticResource DkMutedBrush}"/>
+                                            <TextBlock x:Name="HealthScoreLabel" Text="PC HEALTH" FontSize="11"
+                                                       Foreground="{StaticResource DkMutedBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock x:Name="HealthScoreSub" Text="Checking…" FontSize="12"
+                                                   Foreground="{StaticResource DkMutedBrush}" Margin="0,0,0,6"
+                                                   TextWrapping="Wrap"/>
+                                        <StackPanel x:Name="HealthFixesPanel"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                                 <TextBlock Style="{StaticResource H2}" Text="System overview"
                                            VerticalAlignment="Center" Margin="0,0,12,0"/>
                                 <Button x:Name="DashRefresh" Content="Refresh" Width="90"
                                         Click="DashRefresh_Click"/>
                             </StackPanel>
-                            <UniformGrid Columns="3" Rows="2">
+                            <UniformGrid Columns="3" Rows="3">
                                 <Border Style="{StaticResource Card}" Margin="0,0,12,12">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -209,6 +232,22 @@
                                                    HorizontalAlignment="Right" Margin="0,0,0,2"/>
                                         <stk:Sparkline x:Name="VitalRamGraph" Height="44" LineColor="#4CAF50"/>
                                     </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}" Margin="0,0,12,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse x:Name="DashBootDot" Width="10" Height="10" Fill="#4CAF50"
+                                                 VerticalAlignment="Top" Margin="0,5,10,0"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="BOOT TIME" FontSize="11" Foreground="{StaticResource DkMutedBrush}"/>
+                                            <TextBlock x:Name="DashBoot" Text="…" FontSize="14" FontWeight="SemiBold"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBlock x:Name="DashBootSub" FontSize="11"
+                                                       Foreground="{StaticResource DkMutedBrush}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Grid>
                                 </Border>
                             </UniformGrid>
 
@@ -662,7 +701,14 @@
                                     ToolTip="Some of your tweaks were changed outside the app (Windows updates can do this). Click to restore them."/>
                             <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource Muted12}"
                                        Text="Applies every tweak marked Recommended, in one click."/>
+                            <TextBlock Margin="16,0,0,0" VerticalAlignment="Center" Style="{StaticResource Muted12}"
+                                       Text="Filter:"/>
+                            <TextBox x:Name="TweakSearchBox" Width="200" Margin="6,0,0,0" VerticalAlignment="Center"
+                                     ToolTip="Filter tweaks by name or description" TextChanged="TweakSearch_TextChanged"/>
                         </StackPanel>
+                        <TextBlock x:Name="TweakSearchEmpty" DockPanel.Dock="Bottom" Visibility="Collapsed"
+                                   Margin="0,12,0,0" Style="{StaticResource Muted12}"
+                                   Text="No tweaks match that filter."/>
                         <ScrollViewer>
                             <StackPanel x:Name="OptimizePanel"/>
                         </ScrollViewer>
@@ -675,6 +721,8 @@
                         <StackPanel>
                             <TextBlock Margin="0,0,0,12" Style="{StaticResource Muted12}"
                                        Text="One-click bundles of the tweaks on the Optimize tab. The rating next to each preset is measured live on this PC: it is the share of the preset's improvements that are not active yet. Every preset works on NVIDIA, AMD and Intel alike."/>
+                            <TextBlock x:Name="PresetBootImpact" Margin="0,0,0,12" Style="{StaticResource Muted12}"
+                                       Visibility="Collapsed" TextWrapping="Wrap"/>
                             <UniformGrid x:Name="PresetsPanel" Columns="3"/>
                         </StackPanel>
                     </ScrollViewer>
@@ -854,6 +902,13 @@
                                                 Click="PerfOpenLog_Click"/>
                                         <Button Content="Clear log" Width="100"
                                                 Click="PerfClearLog_Click"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Button x:Name="PerfBaselineBtn" Content="Record idle temp baseline" Width="170"
+                                                Margin="0,0,8,0" Click="PerfBaseline_Click"
+                                                ToolTip="Samples the temperature right now (nothing heavy running) and saves it as your idle baseline. Gaming temps are shown against it."/>
+                                        <TextBlock x:Name="PerfBaselineLabel" VerticalAlignment="Center"
+                                                   Style="{StaticResource Muted12}" Text="No idle baseline recorded."/>
                                     </StackPanel>
                                     <TextBlock Style="{StaticResource Muted12}" TextWrapping="Wrap"
                                                Text="Detects Fortnite, Roblox, Minecraft Java, VRChat, DCS World and GTA V, then logs CPU, RAM and temperature every 15 seconds. The log keeps over a month of history and never grows past 150 MB — oldest entries are trimmed automatically."/>

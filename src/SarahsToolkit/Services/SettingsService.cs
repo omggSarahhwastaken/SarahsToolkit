@@ -127,5 +127,14 @@ namespace SarahsToolkit.Services
         // anything that got reverted elsewhere (e.g. by a Windows update).
         // Null = recorded by an older version; backfilled once from live state.
         public List<string> AppliedTweaks { get; set; }
+        // Idle temperature baseline (Celsius, -1 = not recorded). Recorded on
+        // demand from the Tools page; gaming temps are shown against it.
+        public int IdleTempC { get; set; } = -1;
+        // Measured boot impact: snapshot taken when a preset is applied, so a
+        // later boot can be compared against it.
+        public string BootBaselinePreset { get; set; } = "";
+        public double BootBaselineAvgSec { get; set; } = -1;
+        public string BootBaselineBootId { get; set; } = ""; // LastBootUpTime ticks at apply time
+        public string BootBaselineDate { get; set; } = "";
     }
 }

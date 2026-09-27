@@ -1,1 +1,194 @@
-[{"description":"Sends usage and diagnostic telemetry to Microsoft.","displayName":"Connected User Experiences and Telemetry","name":"DiagTrack"},{"description":"Routes push messages for mobile / device management.","displayName":"WAP Push Message Routing","name":"dmwappushservice"},{"description":"Keeps offline maps updated for the Maps app.","displayName":"Downloaded Maps Manager","name":"MapsBroker"},{"description":"Store demo mode. Useless on a personal PC.","displayName":"Retail Demo","name":"RetailDemo"},{"description":"Lets you send faxes. Legacy feature.","displayName":"Fax","name":"Fax"},{"description":"Shares media libraries over the network (DLNA).","displayName":"Media Player Network Sharing","name":"WMPNetworkSvc"},{"description":"Handles Insider preview builds and flights.","displayName":"Windows Insider","name":"wisvc"},{"description":"Required for printing. Restore this if you use a printer.","displayName":"Print Spooler","name":"Spooler"},{"description":"Lets remote users modify your registry. Security risk.","displayName":"Remote Registry","name":"RemoteRegistry"},{"description":"Reports crashes to Microsoft.","displayName":"Windows Error Reporting","name":"WerSvc"},{"description":"'Run as different user'. Rarely needed.","displayName":"Secondary Logon","name":"seclogon"},{"description":"Smart card certificate handling.","displayName":"Certificate Propagation","name":"CertPropSvc"},{"description":"Smart card reader support.","displayName":"Smart Card","name":"SCardSvr"},{"description":"Discovers smart card readers.","displayName":"Smart Card Device Enumeration","name":"ScDeviceEnum"},{"description":"Locks the PC when a smart card is removed.","displayName":"Smart Card Removal Policy","name":"SCPolicySvc"},{"description":"Tracks moved files so shortcuts keep working.","displayName":"Distributed Link Tracking Client","name":"TrkWks"},{"description":"Caches network files for offline use.","displayName":"Offline Files","name":"CscService"},{"description":"Connects to iSCSI storage targets.","displayName":"iSCSI Initiator","name":"MSiSCSI"},{"description":"Shares TCP ports between WCF apps.","displayName":"Net.Tcp Port Sharing","name":"NetTcpPortSharing"},{"description":"Disk management queries (not the disks themselves).","displayName":"Virtual Disk","name":"vds"},{"description":"WebDAV network folders. Rarely used.","displayName":"WebClient","name":"WebClient"},{"description":"Forwards event logs to a central server.","displayName":"Windows Event Collector","name":"Wecsvc"},{"description":"Deprecated Wi-Fi setup protocol.","displayName":"Windows Connect Now","name":"wcncsvc"},{"description":"Peer-to-peer name resolution.","displayName":"Peer Name Resolution","name":"PNRPSvc"},{"description":"Peer-to-peer grouping services.","displayName":"Peer Networking Grouping","name":"p2psvc"},{"description":"Peer-to-peer identity management.","displayName":"Peer Networking Identity Manager","name":"p2pimsvc"},{"description":"Shared / guest PC account management.","displayName":"Shared PC Account Manager","name":"shpamsvc"},{"description":"Installs ActiveX controls.","displayName":"ActiveX Installer","name":"AxInstSV"},{"description":"Group Policy software deployment.","displayName":"Application Management","name":"AppMgmt"},{"description":"Routes text messages on mobile-connected PCs.","displayName":"SMS Router","name":"SmsRouter"},{"description":"Telephony and mobile broadband state.","displayName":"Phone Service","name":"PhoneSvc"},{"description":"NFC payments and secure elements.","displayName":"Payments and NFC/SE Manager","name":"SEMgrSvc"}]
+[
+  {
+    "name": "DiagTrack",
+    "displayName": "Connected User Experiences and Telemetry",
+    "description": "Sends usage and diagnostic data to Microsoft in the background.",
+    "impact": "Nothing breaks. Windows just stops phoning home your usage stats."
+  },
+  {
+    "name": "dmwappushservice",
+    "displayName": "WAP Push Message Routing",
+    "description": "Handles push-style messages used by mobile device management.",
+    "impact": "Nothing breaks on a normal home PC. Only matters if a workplace manages this PC."
+  },
+  {
+    "name": "MapsBroker",
+    "displayName": "Downloaded Maps Manager",
+    "description": "Downloads and updates offline maps for the Maps app.",
+    "impact": "The Maps app can't use offline maps. Online maps still work fine."
+  },
+  {
+    "name": "RetailDemo",
+    "displayName": "Retail Demo",
+    "description": "Puts the PC into store demo mode for display units in shops.",
+    "impact": "Nothing breaks. This is only useful on a shop display PC."
+  },
+  {
+    "name": "Fax",
+    "displayName": "Fax",
+    "description": "Lets the PC send and receive faxes through an old fax modem.",
+    "impact": "You lose the ability to fax from the PC. Nobody will notice."
+  },
+  {
+    "name": "WMPNetworkSvc",
+    "displayName": "Media Player Network Sharing",
+    "description": "Shares your media library with TVs and other devices on your network.",
+    "impact": "Other devices can't browse media shared from this PC. Playing media locally is unaffected."
+  },
+  {
+    "name": "wisvc",
+    "displayName": "Windows Insider",
+    "description": "Handles Windows Insider preview builds and flights.",
+    "impact": "You can't join or receive Insider preview builds. Normal Windows updates still work."
+  },
+  {
+    "name": "Spooler",
+    "displayName": "Print Spooler",
+    "description": "Every print job goes through this \u2014 it's what makes printing work.",
+    "impact": "Printing stops working entirely. Keep this enabled if you own a printer."
+  },
+  {
+    "name": "RemoteRegistry",
+    "displayName": "Remote Registry",
+    "description": "Lets other computers on the network read and change this PC's registry.",
+    "impact": "Nothing breaks for normal use. Turning this off is actually safer."
+  },
+  {
+    "name": "WerSvc",
+    "displayName": "Windows Error Reporting",
+    "description": "Sends crash reports to Microsoft when apps crash.",
+    "impact": "Nothing breaks. Crash reports just stop being sent."
+  },
+  {
+    "name": "seclogon",
+    "displayName": "Secondary Logon",
+    "description": "Lets you run a program as a different Windows user.",
+    "impact": "'Run as different user' stops working. Almost nobody uses it."
+  },
+  {
+    "name": "CertPropSvc",
+    "displayName": "Certificate Propagation",
+    "description": "Handles certificates stored on smart cards, like corporate ID badges.",
+    "impact": "Smart card logins stop working. Irrelevant without a smart card reader."
+  },
+  {
+    "name": "SCardSvr",
+    "displayName": "Smart Card",
+    "description": "Talks to smart card readers plugged into the PC.",
+    "impact": "Smart card readers stop working. Irrelevant for most home PCs."
+  },
+  {
+    "name": "ScDeviceEnum",
+    "displayName": "Smart Card Device Enumeration",
+    "description": "Notices when a smart card reader gets plugged in.",
+    "impact": "Newly plugged-in smart card readers won't be picked up automatically."
+  },
+  {
+    "name": "SCPolicySvc",
+    "displayName": "Smart Card Removal Policy",
+    "description": "Locks the PC automatically when a smart card is pulled out.",
+    "impact": "Auto-lock on smart card removal stops. Only matters if you use smart cards."
+  },
+  {
+    "name": "TrkWks",
+    "displayName": "Distributed Link Tracking Client",
+    "description": "Keeps shortcuts working when a file gets moved to another drive.",
+    "impact": "Shortcuts to moved files might break instead of fixing themselves. Minor."
+  },
+  {
+    "name": "CscService",
+    "displayName": "Offline Files",
+    "description": "Caches network files so you can keep working with them offline.",
+    "impact": "Offline access to network folders stops. Only matters on work networks."
+  },
+  {
+    "name": "MSiSCSI",
+    "displayName": "iSCSI Initiator",
+    "description": "Connects to enterprise network storage (iSCSI targets).",
+    "impact": "iSCSI storage connections stop. Only matters in business setups."
+  },
+  {
+    "name": "NetTcpPortSharing",
+    "displayName": "Net.Tcp Port Sharing",
+    "description": "Lets special business apps share the same network port.",
+    "impact": "Those specific apps can't share ports. Normal apps are unaffected."
+  },
+  {
+    "name": "vds",
+    "displayName": "Virtual Disk",
+    "description": "Answers questions that apps ask about your disks \u2014 not the disks themselves.",
+    "impact": "Disk tools might show less info. Your drives keep working normally."
+  },
+  {
+    "name": "WebClient",
+    "displayName": "WebClient",
+    "description": "Lets you open WebDAV network folders as if they were local drives.",
+    "impact": "WebDAV network folders stop working. Rarely used at home."
+  },
+  {
+    "name": "Wecsvc",
+    "displayName": "Windows Event Collector",
+    "description": "Forwards this PC's event logs to a central company server.",
+    "impact": "Nothing breaks at home. Only matters on managed corporate networks."
+  },
+  {
+    "name": "wcncsvc",
+    "displayName": "Windows Connect Now",
+    "description": "An old, retired way of setting up Wi-Fi connections.",
+    "impact": "Nothing breaks. This technology is deprecated."
+  },
+  {
+    "name": "PNRPSvc",
+    "displayName": "Peer Name Resolution",
+    "description": "Helps peer-to-peer apps find each other without a central server.",
+    "impact": "Old peer-to-peer features (like Windows collaboration tools) stop resolving names. Rarely used."
+  },
+  {
+    "name": "p2psvc",
+    "displayName": "Peer Networking Grouping",
+    "description": "Groups peer-to-peer apps together so they can cooperate.",
+    "impact": "Old peer-to-peer features stop working. Rarely used."
+  },
+  {
+    "name": "p2pimsvc",
+    "displayName": "Peer Networking Identity Manager",
+    "description": "Manages identities for peer-to-peer apps.",
+    "impact": "Old peer-to-peer features stop working. Rarely used."
+  },
+  {
+    "name": "shpamsvc",
+    "displayName": "Shared PC Account Manager",
+    "description": "Manages accounts on shared or guest PCs, like school computers.",
+    "impact": "Shared-PC account features stop. Irrelevant on a personal PC."
+  },
+  {
+    "name": "AxInstSV",
+    "displayName": "ActiveX Installer",
+    "description": "Installs ActiveX controls \u2014 an ancient Internet Explorer technology.",
+    "impact": "Nothing modern breaks. ActiveX has been dead for years."
+  },
+  {
+    "name": "AppMgmt",
+    "displayName": "Application Management",
+    "description": "Installs software pushed out by corporate Group Policy.",
+    "impact": "Company-pushed software installs stop. Irrelevant on a home PC."
+  },
+  {
+    "name": "SmsRouter",
+    "displayName": "SMS Router",
+    "description": "Routes text messages on PCs with a SIM card inside.",
+    "impact": "Texting from the PC stops. Only matters on cellular-connected PCs."
+  },
+  {
+    "name": "PhoneSvc",
+    "displayName": "Phone Service",
+    "description": "Manages mobile broadband and phone-related features.",
+    "impact": "Cellular data features stop. Wi-Fi and Ethernet are unaffected."
+  },
+  {
+    "name": "SEMgrSvc",
+    "displayName": "Payments and NFC/SE Manager",
+    "description": "Handles NFC tap-to-pay and secure elements on the PC.",
+    "impact": "NFC payments from the PC stop. Most desktops don't have NFC anyway."
+  }
+]

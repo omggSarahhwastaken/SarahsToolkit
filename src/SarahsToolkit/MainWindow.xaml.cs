@@ -41,6 +41,10 @@ namespace SarahsToolkit
         private bool _allowClose;
 
         private List<TweakDefinition> _tweakDefs = new List<TweakDefinition>();
+        // tweak id -> names of other tweaks that write the same registry value
+        // with different data (the last one applied wins).
+        private readonly Dictionary<string, List<string>> _tweakConflicts =
+            new Dictionary<string, List<string>>();
         private List<PresetDefinition> _presetDefs = new List<PresetDefinition>();
         // Tweaks the config file says are applied but the registry disagrees
         // with (reverted outside the app, e.g. by a Windows update).
@@ -55,7 +59,11 @@ namespace SarahsToolkit
         private readonly GameFeedService _games = new GameFeedService();
         private readonly VitalsService _vitals = new VitalsService();
         private readonly HealthService _health = new HealthService();
+        private readonly BootService _boot = new BootService();
         private bool _healthLoaded;
+        private DateTime _healthScoreAt = DateTime.MinValue;
+        private int _healthScore = -1;
+        private DateTime _bootStatsAt = DateTime.MinValue;
         private DispatcherTimer _dashTimer;
         private bool _dashboardLoading;
         private CancellationTokenSource _cleanCts;
@@ -205,6 +213,7 @@ namespace SarahsToolkit
             try
             {
                 _tweakDefs = _tweaks.LoadTweaks();
+                BuildConflictMap();
                 BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
                 BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
                 BuildTweakTab(SecurityTweaksPanel, new[] { "Security" });
@@ -432,6 +441,7 @@ namespace SarahsToolkit
                 SettingsTempCombo.SelectedIndex =
                     _settings.Settings.TempFahrenheit ? 1 : 0;
                 PerfTrackEnabled.IsChecked = _settings.Settings.LogPerformance;
+                UpdatePerfBaselineLabel();
             }
             finally { _applyingSettings = false; }
         }
@@ -896,6 +906,16 @@ namespace SarahsToolkit
                     RebootBanner.Visibility = Visibility.Collapsed;
                 }
 
+                // Boot time card: the event-log read is cheap but not 1-second cheap.
+                if (!quiet || (DateTime.UtcNow - _bootStatsAt).TotalSeconds >= 60)
+                {
+                    _bootStatsAt = DateTime.UtcNow;
+                    RefreshBootCardAsync();
+                }
+                // Health score: fast inputs are free, the deep checks run on a
+                // 5-minute cadence in the background.
+                RefreshHealthScoreAsync(snap);
+
                 if (!quiet) SetStatus("Ready.");
             }
             catch (Exception ex)
@@ -910,6 +930,158 @@ namespace SarahsToolkit
             finally
             {
                 _dashboardLoading = false;
+            }
+        }
+
+        private async void RefreshBootCardAsync()
+        {
+            try
+            {
+                var stats = await _boot.GetBootStatsAsync();
+                Dispatcher.Invoke(() =>
+                {
+                    if (stats.SampleCount == 0 || double.IsNaN(stats.LatestSec))
+                    {
+                        DashBoot.Text = "Unavailable";
+                        DashBootSub.Text = "";
+                        SetDot(DashBootDot, DotColor.Gray);
+                        return;
+                    }
+                    DashBoot.Text = stats.LatestSec.ToString("0") + "s";
+                    DashBootSub.Text = stats.SampleCount > 1
+                        ? "Avg " + stats.AvgSec.ToString("0") + "s over last " +
+                          stats.SampleCount + " boots"
+                        : "Last boot";
+                    SetDot(DashBootDot, stats.LatestSec <= 30 ? DotColor.Green
+                        : stats.LatestSec <= 60 ? DotColor.Amber : DotColor.Red);
+                });
+            }
+            catch { /* card keeps its previous value */ }
+        }
+
+        private async void RefreshHealthScoreAsync(DashboardSnapshot snap)
+        {
+            if (_healthScore >= 0 &&
+                (DateTime.UtcNow - _healthScoreAt).TotalMinutes < 5) return;
+            _healthScoreAt = DateTime.UtcNow;
+            int score = 100;
+            var fixes = new List<Tuple<string, string>>();
+            try
+            {
+                if (snap.DiskTotalGb > 0)
+                {
+                    double freePct = snap.DiskFreeGb / snap.DiskTotalGb * 100;
+                    if (freePct <= 10)
+                    {
+                        score -= 20;
+                        fixes.Add(Tuple.Create(
+                            "Disk C: is almost full (" + snap.DiskFreeGb.ToString("0") +
+                            " GB free)", "Cleanup"));
+                    }
+                    else if (freePct <= 20)
+                    {
+                        score -= 10;
+                        fixes.Add(Tuple.Create("Disk C: is getting full", "Cleanup"));
+                    }
+                }
+                if (snap.PendingReboot)
+                {
+                    score -= 10;
+                    fixes.Add(Tuple.Create("A restart is pending", "Home"));
+                }
+                try
+                {
+                    var wu = await _health.GetWindowsUpdateInfoAsync();
+                    if (wu.Checked && wu.PendingCount > 0)
+                    {
+                        score -= 10;
+                        fixes.Add(Tuple.Create(
+                            wu.PendingCount + " Windows update(s) waiting", "Health"));
+                    }
+                }
+                catch { }
+                try
+                {
+                    var disks = await _health.GetDiskHealthAsync();
+                    foreach (var d in disks)
+                    {
+                        if (d.HealthStatus == "Unhealthy" || d.HealthStatus == "Warning")
+                        {
+                            score -= 20;
+                            fixes.Add(Tuple.Create("Drive '" + d.Name + "' reports " +
+                                                   d.HealthStatus.ToLower(), "Health"));
+                            break;
+                        }
+                    }
+                    var worn = disks.FirstOrDefault(d => d.WearPercent >= 80);
+                    if (worn != null)
+                    {
+                        score -= 10;
+                        fixes.Add(Tuple.Create("SSD wear at " + worn.WearPercent +
+                                               "% on " + worn.Name, "Health"));
+                    }
+                }
+                catch { }
+                try
+                {
+                    var batt = await _health.GetBatteryInfoAsync();
+                    if (batt.HasBattery && !double.IsNaN(batt.HealthPercent) &&
+                        batt.HealthPercent < 70)
+                    {
+                        score -= 10;
+                        fixes.Add(Tuple.Create("Battery health is " +
+                            batt.HealthPercent.ToString("0") +
+                            "% of design capacity", "Health"));
+                    }
+                }
+                catch { }
+                score = Math.Max(0, score);
+                _healthScore = score;
+                int scoreCopy = score;
+                var fixesCopy = fixes;
+                Dispatcher.Invoke(() => RenderHealthScore(scoreCopy, fixesCopy));
+            }
+            catch { /* score keeps its previous value */ }
+        }
+
+        private void RenderHealthScore(int score, List<Tuple<string, string>> fixes)
+        {
+            if (HealthScoreNum == null) return;
+            HealthScoreNum.Text = score.ToString();
+            string hex = score >= 80 ? "#4CAF50" : score >= 60 ? "#F0A832" : "#EF5350";
+            HealthScoreNum.Foreground =
+                new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            HealthScoreLabel.Text = score >= 80 ? "EXCELLENT"
+                : score >= 60 ? "GOOD"
+                : score >= 40 ? "NEEDS ATTENTION" : "POOR";
+            HealthScoreSub.Text = fixes.Count == 0
+                ? "Everything looks good. Nice."
+                : "Top things to fix:";
+            HealthFixesPanel.Children.Clear();
+            foreach (var f in fixes.Take(3))
+            {
+                var btn = new Button
+                {
+                    Content = "→ " + f.Item1,
+                    Tag = f.Item2,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(0, 0, 0, 4),
+                    Padding = new Thickness(10, 4, 10, 4),
+                    FontSize = 12
+                };
+                btn.Click += HealthFix_Click;
+                HealthFixesPanel.Children.Add(btn);
+            }
+        }
+
+        private void HealthFix_Click(object sender, RoutedEventArgs e)
+        {
+            string page = (string)((Button)sender).Tag;
+            switch (page)
+            {
+                case "Cleanup": NavCleanup.IsChecked = true; break;
+                case "Health": NavHealth.IsChecked = true; break;
+                default: NavDashboard.IsChecked = true; break;
             }
         }
 
@@ -1324,7 +1496,20 @@ namespace SarahsToolkit
                             Margin = new Thickness(0, 2, 0, 0),
                             FontSize = 12
                         });
+                        if (_tweakConflicts.TryGetValue(tw.Id, out var conflicts) && conflicts.Count > 0)
+                        {
+                            left.Children.Add(new TextBlock
+                            {
+                                Text = "⚠ Conflicts with " + string.Join(", ", conflicts) +
+                                       " — they change the same setting, so the last one applied wins.",
+                                TextWrapping = TextWrapping.Wrap,
+                                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F0A832")),
+                                Margin = new Thickness(0, 2, 0, 0),
+                                FontSize = 12
+                            });
+                        }
                         row.Children.Add(left);
+                        row.Tag = tw;
 
                         var toggle = new CheckBox
                         {
@@ -1364,10 +1549,80 @@ namespace SarahsToolkit
             }
         }
 
+        // Two tweaks conflict when their Apply operations write different data to
+        // the same registry value — applying both means the last one silently wins.
+        private void BuildConflictMap()
+        {
+            _tweakConflicts.Clear();
+            var byTarget = new Dictionary<string, List<TweakDefinition>>();
+            foreach (var tw in _tweakDefs)
+            {
+                foreach (var op in tw.Apply ?? Enumerable.Empty<RegistryOperation>())
+                {
+                    string key = ((op.Hive ?? "").ToUpperInvariant() + "\\" +
+                                  (op.KeyPath ?? "").ToUpperInvariant() + "\\" +
+                                  (op.ValueName ?? "").ToUpperInvariant());
+                    if (!byTarget.TryGetValue(key, out var list))
+                        byTarget[key] = list = new List<TweakDefinition>();
+                    if (!list.Contains(tw)) list.Add(tw);
+                }
+            }
+            foreach (var kv in byTarget)
+            {
+                var writers = kv.Value;
+                if (writers.Count < 2) continue;
+                var dataGroups = writers
+                    .Select(tw => (tw.Apply ?? Enumerable.Empty<RegistryOperation>())
+                        .FirstOrDefault(o => ((o.Hive ?? "").ToUpperInvariant() + "\\" +
+                                              (o.KeyPath ?? "").ToUpperInvariant() + "\\" +
+                                              (o.ValueName ?? "").ToUpperInvariant()) == kv.Key))
+                    .Where(o => o != null)
+                    .Select(o => (o.Data ?? "<delete>").ToUpperInvariant())
+                    .Distinct()
+                    .ToList();
+                if (dataGroups.Count < 2) continue; // same value, no real conflict
+                foreach (var tw in writers)
+                    _tweakConflicts[tw.Id] = writers.Where(o => o != tw)
+                        .Select(o => o.Name).Distinct().ToList();
+            }
+        }
+
+        private void TweakSearch_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (TweakSearchBox == null || OptimizePanel == null) return;
+            string q = (TweakSearchBox.Text ?? "").Trim().ToLowerInvariant();
+            bool anyGroup = false;
+            foreach (var child in OptimizePanel.Children)
+            {
+                var group = child as GroupBox;
+                if (group == null) continue;
+                var stack = group.Content as StackPanel;
+                if (stack == null) continue;
+                bool anyRow = false;
+                foreach (var rowChild in stack.Children)
+                {
+                    var row = rowChild as Grid;
+                    if (row == null) continue;
+                    var tw = row.Tag as TweakDefinition;
+                    bool show = tw != null && (q.Length == 0 ||
+                        (tw.Name ?? "").ToLowerInvariant().Contains(q) ||
+                        (tw.Description ?? "").ToLowerInvariant().Contains(q) ||
+                        (tw.Category ?? "").ToLowerInvariant().Contains(q));
+                    row.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+                    if (show) anyRow = true;
+                }
+                foreach (var rowChild in stack.Children)
+                    if (rowChild is Separator sep)
+                        sep.Visibility = q.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+                group.Visibility = anyRow ? Visibility.Visible : Visibility.Collapsed;
+                if (anyRow) anyGroup = true;
+            }
+            TweakSearchEmpty.Visibility = anyGroup ? Visibility.Collapsed : Visibility.Visible;
+        }
+
         private void TweakBox_Toggled(object sender, RoutedEventArgs e)
         {
-            if (_buildingUi) return;
-            var cb = (CheckBox)sender;
+            if (_buildingUi) return;var cb = (CheckBox)sender;
             var tw = (TweakDefinition)cb.Tag;
             try
             {
@@ -1577,6 +1832,7 @@ namespace SarahsToolkit
                 _presetRatingLabels[preset.Id] = ratingLabel;
             }
             RefreshPresetRatings();
+            _ = UpdatePresetBootImpactAsync();
         }
 
         private bool PresetNeedsReboot(PresetDefinition preset)
@@ -1667,6 +1923,68 @@ namespace SarahsToolkit
             BuildTweakTab(SecurityTweaksPanel, new[] { "Security" });
             RefreshDriftButton();
             RefreshPresetRatings();
+            _ = RecordBootBaselineAsync(preset);
+        }
+
+        // Snapshot boot performance when a preset is applied, so the next
+        // boots can be measured against it (see UpdatePresetBootImpactAsync).
+        private async Task RecordBootBaselineAsync(PresetDefinition preset)
+        {
+            try
+            {
+                var stats = await _boot.GetBootStatsAsync();
+                var lastBoot = await _boot.GetLastBootTimeAsync();
+                if (stats.SampleCount == 0 || double.IsNaN(stats.AvgSec)) return;
+                var s = _settings.Settings;
+                s.BootBaselinePreset = preset.Name;
+                s.BootBaselineAvgSec = stats.AvgSec;
+                s.BootBaselineBootId =
+                    lastBoot == DateTime.MinValue ? "" : lastBoot.Ticks.ToString();
+                s.BootBaselineDate = DateTime.Now.ToString("MMM d");
+                _settings.Save();
+                await UpdatePresetBootImpactAsync();
+            }
+            catch { }
+        }
+
+        private async Task UpdatePresetBootImpactAsync()
+        {
+            try
+            {
+                var s = _settings.Settings;
+                if (PresetBootImpact == null ||
+                    string.IsNullOrEmpty(s.BootBaselinePreset) || s.BootBaselineAvgSec < 0)
+                {
+                    if (PresetBootImpact != null)
+                        PresetBootImpact.Visibility = Visibility.Collapsed;
+                    return;
+                }
+                var stats = await _boot.GetBootStatsAsync();
+                var lastBoot = await _boot.GetLastBootTimeAsync();
+                string bootId =
+                    lastBoot == DateTime.MinValue ? "" : lastBoot.Ticks.ToString();
+                Dispatcher.Invoke(() =>
+                {
+                    if (double.IsNaN(stats.AvgSec) || stats.SampleCount == 0)
+                    {
+                        PresetBootImpact.Visibility = Visibility.Collapsed;
+                        return;
+                    }
+                    double delta = s.BootBaselineAvgSec - stats.AvgSec; // + = faster now
+                    string change = Math.Abs(delta) < 0.5 ? "about the same"
+                        : Math.Abs(delta).ToString("0") + "s " +
+                          (delta > 0 ? "faster" : "slower");
+                    string note = bootId != s.BootBaselineBootId
+                        ? " — measured across reboots since then"
+                        : " — restart Windows to measure the difference";
+                    PresetBootImpact.Text = "Measured boot impact: " + s.BootBaselinePreset +
+                        " applied " + s.BootBaselineDate + ", boot went " +
+                        s.BootBaselineAvgSec.ToString("0") + "s → " +
+                        stats.AvgSec.ToString("0") + "s (" + change + ")" + note + ".";
+                    PresetBootImpact.Visibility = Visibility.Visible;
+                });
+            }
+            catch { }
         }
 
         // ---------- Cleanup: analyze + determinate clean + summary ----------
@@ -2101,9 +2419,24 @@ namespace SarahsToolkit
                     Text = def.Description,
                     TextWrapping = TextWrapping.Wrap,
                     Foreground = muted,
-                    Margin = new Thickness(20, 0, 0, 2)
+                    Margin = new Thickness(20, 0, 0, 0)
                 };
                 ServicesPanel.Children.Add(desc);
+                if (!string.IsNullOrWhiteSpace(def.Impact))
+                {
+                    ServicesPanel.Children.Add(new TextBlock
+                    {
+                        Text = "If disabled: " + def.Impact,
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground = muted,
+                        FontStyle = FontStyles.Italic,
+                        Margin = new Thickness(20, 0, 0, 4)
+                    });
+                }
+                else
+                {
+                    ServicesPanel.Children.Add(new TextBlock { Margin = new Thickness(0, 0, 0, 2) });
+                }
             }
         }
 
@@ -3060,9 +3393,21 @@ namespace SarahsToolkit
                     return;
                 }
                 try { _perf.AppendLog(s); } catch { }
+                string tempPart = "";
+                if (s.TempC >= 0)
+                {
+                    tempPart = " • " + _perf.FormatTemp(s.TempC);
+                    int idle = _settings.Settings.IdleTempC;
+                    if (idle >= 0)
+                    {
+                        int delta = s.TempC - idle;
+                        tempPart += " (+" + delta + "° over your " +
+                                    _perf.FormatTemp(idle) + " idle baseline)";
+                    }
+                }
                 PerfStatus.Text = "Logging: " + s.Game + " — CPU " + s.CpuPct.ToString("0") +
                     "% • RAM " + s.RamUsedGb.ToString("0.0") + "/" + s.RamTotalGb.ToString("0.0") + " GB" +
-                    (s.TempC >= 0 ? " • " + _perf.FormatTemp(s.TempC) : "");
+                    tempPart;
             }
             catch { }
             finally { _perfSampling = false; }
@@ -3112,6 +3457,40 @@ namespace SarahsToolkit
             _perf.ClearLog();
             PerfStatus.Text = "Log cleared. Watching for games… (Fortnite, Roblox, Minecraft, VRChat, DCS, GTA V)";
             SetStatus("Performance log cleared.");
+        }
+
+        private async void PerfBaseline_Click(object sender, RoutedEventArgs e)
+        {
+            PerfBaselineBtn.IsEnabled = false;
+            try
+            {
+                SetStatus("Sampling idle temperature…");
+                var s = await _perf.SampleAsync();
+                if (s.TempC >= 0)
+                {
+                    _settings.Settings.IdleTempC = s.TempC;
+                    _settings.Save();
+                    UpdatePerfBaselineLabel();
+                    SetStatus("Idle temp baseline recorded: " + _perf.FormatTemp(s.TempC) + ".");
+                }
+                else
+                {
+                    SetStatus("No temperature sensor found — baseline not recorded.");
+                }
+            }
+            finally
+            {
+                PerfBaselineBtn.IsEnabled = true;
+            }
+        }
+
+        private void UpdatePerfBaselineLabel()
+        {
+            if (PerfBaselineLabel == null) return;
+            int idle = _settings.Settings.IdleTempC;
+            PerfBaselineLabel.Text = idle >= 0
+                ? "Idle baseline: " + _perf.FormatTemp(idle) + "."
+                : "No idle baseline recorded.";
         }
 
         // ---------- Dev ----------
