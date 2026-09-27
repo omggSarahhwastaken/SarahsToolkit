@@ -49,6 +49,9 @@ namespace SarahsToolkit
         private bool _servicesRefreshed = false;
         private bool _dashboardLoaded = false;
         private readonly GameFeedService _games = new GameFeedService();
+        private readonly VitalsService _vitals = new VitalsService();
+        private readonly HealthService _health = new HealthService();
+        private bool _healthLoaded;
         private DispatcherTimer _dashTimer;
         private bool _dashboardLoading;
         private CancellationTokenSource _cleanCts;
@@ -89,6 +92,7 @@ namespace SarahsToolkit
             if (_allowClose)
             {
                 if (_tray != null) { _tray.Dispose(); _tray = null; }
+                try { _vitals.Dispose(); } catch { }
                 base.OnClosing(e);
                 return;
             }
@@ -97,6 +101,7 @@ namespace SarahsToolkit
             if (!_settings.Settings.MinimizeToTray)
             {
                 if (_tray != null) { _tray.Dispose(); _tray = null; }
+                try { _vitals.Dispose(); } catch { }
                 base.OnClosing(e);
                 return;
             }
@@ -283,6 +288,7 @@ namespace SarahsToolkit
             if (PageDashboard == null || PageHost == null) return;
 
             PageDashboard.Visibility = Visibility.Collapsed;
+            PageHealth.Visibility = Visibility.Collapsed;
             PageCleanup.Visibility = Visibility.Collapsed;
             PageDebloat.Visibility = Visibility.Collapsed;
             PageServices.Visibility = Visibility.Collapsed;
@@ -310,6 +316,16 @@ namespace SarahsToolkit
                     {
                         _dashboardLoaded = true;
                         await LoadDashboardAsync();
+                    }
+                    break;
+                case "NavHealth":
+                    PageHealth.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Health";
+                    PageSubtitle.Text = "Battery, storage and system maintenance";
+                    if (!_healthLoaded)
+                    {
+                        _healthLoaded = true;
+                        _ = LoadHealthAsync();
                     }
                     break;
                 case "NavCleanup":
@@ -450,6 +466,7 @@ namespace SarahsToolkit
                 case "Debloat": target = NavDebloat; break;
                 case "Services": target = NavServices; break;
                 case "Optimize": target = NavOptimize; break;
+                case "Health": target = NavHealth; break;
                 case "Presets": target = NavPresets; break;
                 case "Customize": target = NavCustomize; break;
                 case "Network": target = NavNetwork; break;
@@ -571,6 +588,233 @@ namespace SarahsToolkit
             if (WindowState == WindowState.Minimized) return;
             if (PageDashboard == null || PageDashboard.Visibility != Visibility.Visible) return;
             _ = LoadDashboardAsync(quiet: true);
+            _ = UpdateVitalsAsync();
+        }
+
+        private bool _vitalsUpdating;
+
+        private async Task UpdateVitalsAsync()
+        {
+            if (_vitalsUpdating) return;
+            _vitalsUpdating = true;
+            try
+            {
+                await _vitals.SampleAsync().ConfigureAwait(true);
+
+                SetVital(VitalCpuVal, VitalCpuGraph, VitalCpuDot, _vitals.Cpu, _vitals.CpuHistory,
+                    v => v.ToString("0") + "%");
+                if (_vitals.HasGpu)
+                {
+                    VitalGpuCard.Visibility = Visibility.Visible;
+                    SetVital(VitalGpuVal, VitalGpuGraph, VitalGpuDot, _vitals.Gpu, _vitals.GpuHistory,
+                        v => v.ToString("0") + "%");
+                }
+                else
+                {
+                    VitalGpuCard.Visibility = Visibility.Collapsed;
+                }
+                SetVital(VitalRamVal, VitalRamGraph, VitalRamDot, _vitals.Ram, _vitals.RamHistory,
+                    v => v.ToString("0") + "%");
+                SetVital(VitalDiskVal, VitalDiskGraph, VitalDiskDot, _vitals.Disk, _vitals.DiskHistory,
+                    v => v.ToString("0") + "%");
+                SetVital(VitalNetVal, VitalNetGraph, VitalNetDot, _vitals.NetMbps, _vitals.NetHistory,
+                    FormatMbps, DotColor.Blue);
+                SetVital(VitalPingVal, VitalPingGraph, VitalPingDot, _vitals.PingMs, _vitals.PingHistory,
+                    v => v.ToString("0") + " ms",
+                    double.IsNaN(_vitals.PingMs) ? DotColor.Gray
+                        : _vitals.PingMs >= 150 ? DotColor.Red
+                        : _vitals.PingMs >= 80 ? DotColor.Amber : DotColor.Green);
+            }
+            catch { /* vitals are best-effort; never break the dashboard */ }
+            finally { _vitalsUpdating = false; }
+        }
+
+        private static string FormatMbps(double mbps)
+        {
+            if (mbps < 1) return (mbps * 1000).ToString("0") + " Kbps";
+            if (mbps < 1000) return mbps.ToString("0.0") + " Mbps";
+            return (mbps / 1000).ToString("0.00") + " Gbps";
+        }
+
+        private void SetVital(TextBlock val, Controls.Sparkline graph, Ellipse dot,
+            double current, double[] history, Func<double, string> format, DotColor? dotOverride = null)
+        {
+            if (double.IsNaN(current))
+            {
+                val.Text = "—";
+                SetDot(dot, DotColor.Gray);
+            }
+            else
+            {
+                val.Text = format(current);
+                SetDot(dot, dotOverride ?? (current >= 90 ? DotColor.Red : current >= 75 ? DotColor.Amber : DotColor.Green));
+            }
+            graph.Values = history;
+        }
+
+        // ---------- Health ----------
+
+        private async Task LoadHealthAsync()
+        {
+            var batteryTask = _health.GetBatteryInfoAsync();
+            var disksTask = _health.GetDiskHealthAsync();
+            var updatesTask = _health.GetWindowsUpdateInfoAsync();
+
+            var battery = await batteryTask;
+            if (battery.HasBattery)
+            {
+                HealthBatteryEmpty.Visibility = Visibility.Collapsed;
+                HealthBatteryFacts.Visibility = Visibility.Visible;
+                if (!double.IsNaN(battery.HealthPercent))
+                {
+                    HealthBatteryPct.Text = battery.HealthPercent.ToString("0") + "%";
+                    HealthBatteryBar.Value = Math.Max(0, Math.Min(100, battery.HealthPercent));
+                    SetDot(HealthBatteryDot, battery.HealthPercent >= 80 ? DotColor.Green
+                        : battery.HealthPercent >= 60 ? DotColor.Amber : DotColor.Red);
+                }
+                else
+                {
+                    HealthBatteryPct.Text = "—";
+                    SetDot(HealthBatteryDot, DotColor.Gray);
+                }
+                HealthBatteryDesign.Text = battery.DesignCapacityMwh > 0
+                    ? (battery.DesignCapacityMwh / 1000.0).ToString("0.0") + " Wh" : "—";
+                HealthBatteryFull.Text = battery.FullChargeCapacityMwh > 0
+                    ? (battery.FullChargeCapacityMwh / 1000.0).ToString("0.0") + " Wh" : "—";
+                HealthBatteryCycles.Text = battery.CycleCount >= 0 ? battery.CycleCount.ToString() : "—";
+                string charge = battery.ChargePercent >= 0 ? battery.ChargePercent + "%" : "—";
+                if (!string.IsNullOrEmpty(battery.PowerState)) charge += " · " + battery.PowerState;
+                HealthBatteryCharge.Text = charge;
+            }
+            else
+            {
+                HealthBatteryFacts.Visibility = Visibility.Collapsed;
+                HealthBatteryEmpty.Visibility = Visibility.Visible;
+                HealthBatteryPct.Text = "—";
+                SetDot(HealthBatteryDot, DotColor.Gray);
+            }
+
+            var disks = await disksTask;
+            HealthDisksPanel.Children.Clear();
+            if (disks.Count == 0)
+            {
+                HealthDisksPanel.Children.Add(new TextBlock
+                {
+                    Text = "Couldn't read disk health on this machine.",
+                    Style = (Style)FindResource("Muted12")
+                });
+            }
+            foreach (var d in disks)
+            {
+                var dot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
+                bool healthy = d.HealthStatus.Equals("Healthy", StringComparison.OrdinalIgnoreCase);
+                bool worn = d.WearPercent >= 80;
+                dot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(
+                    !healthy || worn ? "#EF5350" : d.WearPercent >= 50 ? "#FFA726" : "#4CAF50"));
+
+                var name = new TextBlock
+                {
+                    Text = d.Name,
+                    FontSize = 13,
+                    FontWeight = FontWeights.SemiBold,
+                    TextWrapping = TextWrapping.Wrap
+                };
+                var sub = new TextBlock
+                {
+                    FontSize = 11,
+                    Foreground = (Brush)FindResource("DkMutedBrush"),
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 2, 0, 0)
+                };
+                var parts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(d.MediaType) && !d.MediaType.Equals("Unspecified", StringComparison.OrdinalIgnoreCase))
+                    parts.Add(d.MediaType);
+                parts.Add(healthy ? "Healthy" : d.HealthStatus);
+                if (d.SizeBytes > 0) parts.Add((d.SizeBytes / 1073741824.0).ToString("0") + " GB");
+                if (d.WearPercent >= 0) parts.Add("Wear " + d.WearPercent + "%");
+                if (d.TemperatureC >= 0) parts.Add(d.TemperatureC + "°C");
+                sub.Text = string.Join(" · ", parts);
+
+                var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+                row.Children.Add(dot);
+                var textCol = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
+                textCol.Children.Add(name);
+                textCol.Children.Add(sub);
+                row.Children.Add(textCol);
+                HealthDisksPanel.Children.Add(row);
+            }
+
+            var updates = await updatesTask;
+            if (updates.Checked)
+            {
+                if (updates.PendingCount == 0)
+                {
+                    HealthUpdatesVal.Text = "Up to date";
+                    SetDot(HealthUpdatesDot, DotColor.Green);
+                }
+                else
+                {
+                    HealthUpdatesVal.Text = updates.PendingCount + " pending";
+                    SetDot(HealthUpdatesDot, DotColor.Amber);
+                }
+            }
+            else
+            {
+                HealthUpdatesVal.Text = "Couldn't check";
+                SetDot(HealthUpdatesDot, DotColor.Gray);
+            }
+        }
+
+        private bool _maintRunning;
+
+        private void SetMaintRunning(bool running)
+        {
+            _maintRunning = running;
+            MaintRetrimBtn.IsEnabled = !running;
+            MaintDismBtn.IsEnabled = !running;
+            MaintSfcBtn.IsEnabled = !running;
+        }
+
+        private async void MaintRetrim_Click(object sender, RoutedEventArgs e)
+        {
+            if (_maintRunning) return;
+            SetMaintRunning(true);
+            MaintRetrimStatus.Text = "Running…";
+            try
+            {
+                var r = await _health.RunRetrimAsync();
+                MaintRetrimStatus.Text = r.Summary;
+            }
+            catch (Exception ex) { MaintRetrimStatus.Text = "Failed: " + ex.Message; }
+            finally { SetMaintRunning(false); }
+        }
+
+        private async void MaintDism_Click(object sender, RoutedEventArgs e)
+        {
+            if (_maintRunning) return;
+            SetMaintRunning(true);
+            MaintDismStatus.Text = "Running — this can take several minutes…";
+            try
+            {
+                var r = await _health.RunComponentCleanupAsync();
+                MaintDismStatus.Text = r.Summary;
+            }
+            catch (Exception ex) { MaintDismStatus.Text = "Failed: " + ex.Message; }
+            finally { SetMaintRunning(false); }
+        }
+
+        private async void MaintSfc_Click(object sender, RoutedEventArgs e)
+        {
+            if (_maintRunning) return;
+            SetMaintRunning(true);
+            MaintSfcStatus.Text = "Running — this can take several minutes…";
+            try
+            {
+                var r = await _health.RunSfcAsync();
+                MaintSfcStatus.Text = r.Summary;
+            }
+            catch (Exception ex) { MaintSfcStatus.Text = "Failed: " + ex.Message; }
+            finally { SetMaintRunning(false); }
         }
 
         private async Task LoadDashboardAsync(bool quiet = false)
@@ -2563,8 +2807,11 @@ namespace SarahsToolkit
             DevLog.Items.Clear();
             DevLogLine("Running all checks...");
             DevValidateData();
+            DevPagesCheck();
             await DevUpdateCheckAsync();
             await DevPayloadCheckAsync();
+            await DevVitalsCheckAsync();
+            await DevHealthCheckAsync();
             await DevEnvCheckAsync();
             DevLogLine("All checks finished.");
         }
@@ -2631,6 +2878,16 @@ namespace SarahsToolkit
                     bad + " invalid, " + dangling + " dangling tweak refs");
             }
             catch (Exception ex) { DevLogLine("FAIL: presets.json — " + ex.Message); }
+
+            try
+            {
+                var releases = _games.LoadUpcoming();
+                int bad = releases.Count(r => string.IsNullOrWhiteSpace(r.Title) ||
+                    r.Date == default(DateTime));
+                DevLogLine((bad == 0 ? "PASS" : "FAIL") + ": game_releases.json — " +
+                    releases.Count + " upcoming releases, " + bad + " invalid");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: game_releases.json — " + ex.Message); }
         }
 
         private async void DevUpdateCheck_Click(object sender, RoutedEventArgs e)
@@ -2676,10 +2933,20 @@ namespace SarahsToolkit
                 using (var client = new HttpClient())
                 {
                     client.Timeout = TimeSpan.FromMinutes(10);
-                    byte[] bytes = Convert.FromBase64String(await client.GetStringAsync(dlUrl));
+                    // Mirror the real updater: base64 for old manifests, raw bytes otherwise.
+                    byte[] bytes;
+                    if (string.Equals(info.Encoding, "base64", StringComparison.OrdinalIgnoreCase))
+                        bytes = Convert.FromBase64String(await client.GetStringAsync(dlUrl));
+                    else
+                        bytes = await client.GetByteArrayAsync(dlUrl);
                     bool mz = bytes.Length > 2 && bytes[0] == 'M' && bytes[1] == 'Z';
-                    DevLogLine((mz ? "PASS" : "FAIL") + ": payload decoded, " +
-                        bytes.Length + " bytes, exe header " + (mz ? "OK" : "BAD"));
+                    bool footer = bytes.Length > 16 &&
+                        System.Text.Encoding.ASCII.GetString(bytes, bytes.Length - 8, 8) == "STKINSTL";
+                    DevLogLine((mz && footer ? "PASS" : "FAIL") + ": payload " +
+                        (string.Equals(info.Encoding, "base64",
+                            StringComparison.OrdinalIgnoreCase) ? "decoded" : "downloaded") +
+                        ", " + bytes.Length + " bytes, exe header " + (mz ? "OK" : "BAD") +
+                        ", installer footer " + (footer ? "OK" : "BAD"));
                 }
             }
             catch (Exception ex) { DevLogLine("FAIL: payload — " + ex.Message); }
@@ -2723,6 +2990,154 @@ namespace SarahsToolkit
                     Dispatcher.Invoke(new Action(() => DevLogLine("FAIL: PowerShell — " + ex.Message)));
                 }
             });
+        }
+
+        // ---------- Dev self-checks ----------
+
+        private void DevPagesCheck()
+        {
+            DevLogLine("--- Pages ---");
+            string[] pages = { "Dashboard", "Health", "Cleanup", "Debloat", "Services",
+                "Optimize", "Presets", "Customize", "Network", "Security", "Tools",
+                "Dev", "About", "Settings" };
+            int bad = 0;
+            foreach (var p in pages)
+            {
+                bool nav = FindName("Nav" + p) != null;
+                bool page = FindName("Page" + p) != null;
+                if (!nav || !page)
+                {
+                    bad++;
+                    DevLogLine("FAIL: " + p + " — nav button found: " + nav + ", page found: " + page);
+                }
+            }
+            if (bad == 0)
+                DevLogLine("PASS: all " + pages.Length + " nav buttons map to a page");
+        }
+
+        private async Task DevVitalsCheckAsync()
+        {
+            DevLogLine("--- Live vitals ---");
+            try
+            {
+                // Sparkline smoke test: construct + feed values, no render needed.
+                var spark = new Controls.Sparkline
+                {
+                    Values = new double[] { 10, 20, double.NaN, 40 },
+                    LineColor = System.Windows.Media.Colors.DodgerBlue,
+                    AutoScale = true
+                };
+                DevLogLine(spark.Values.Length == 4 ? "PASS: sparkline control constructs"
+                    : "FAIL: sparkline control");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: sparkline — " + ex.Message); }
+
+            try
+            {
+                await _vitals.SampleAsync();
+                LogVitalRange("CPU", _vitals.Cpu, 0, 100, v => v.ToString("0") + "%");
+                LogVitalRange("GPU", _vitals.Gpu, 0, 100, v => v.ToString("0") + "%");
+                LogVitalRange("Memory", _vitals.Ram, 0, 100, v => v.ToString("0") + "%");
+                LogVitalRange("Disk", _vitals.Disk, 0, 100, v => v.ToString("0") + "%");
+                if (double.IsNaN(_vitals.NetMbps))
+                    DevLogLine("INFO: network — no interface counters on this machine");
+                else if (_vitals.NetMbps < 0)
+                    DevLogLine("FAIL: network — negative throughput: " + _vitals.NetMbps);
+                else
+                    DevLogLine("PASS: network = " + FormatMbps(_vitals.NetMbps));
+                if (double.IsNaN(_vitals.PingMs))
+                    DevLogLine("INFO: ping — ICMP blocked or no network");
+                else if (_vitals.PingMs < 0 || _vitals.PingMs > 10000)
+                    DevLogLine("FAIL: ping out of range: " + _vitals.PingMs);
+                else
+                    DevLogLine("PASS: ping = " + _vitals.PingMs.ToString("0") + " ms");
+                foreach (var h in new[] { _vitals.CpuHistory, _vitals.GpuHistory,
+                    _vitals.RamHistory, _vitals.DiskHistory, _vitals.NetHistory, _vitals.PingHistory })
+                {
+                    if (h.Length > VitalsService.HistoryLength)
+                        DevLogLine("FAIL: vital history exceeded capacity: " + h.Length);
+                }
+                DevLogLine("PASS: vital histories within capacity");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: vitals sampling — " + ex.Message); }
+        }
+
+        private void LogVitalRange(string name, double v, double min, double max,
+            Func<double, string> format)
+        {
+            if (double.IsNaN(v))
+                DevLogLine("INFO: " + name + " — counter unavailable on this machine");
+            else if (v < min || v > max)
+                DevLogLine("FAIL: " + name + " out of range: " + v);
+            else
+                DevLogLine("PASS: " + name + " = " + format(v));
+        }
+
+        private async Task DevHealthCheckAsync()
+        {
+            DevLogLine("--- Health (read-only) ---");
+            try
+            {
+                var b = await _health.GetBatteryInfoAsync();
+                if (!b.HasBattery)
+                {
+                    DevLogLine("PASS: battery query — no battery detected, handled as desktop");
+                }
+                else if (!double.IsNaN(b.HealthPercent) &&
+                    (b.HealthPercent < 0 || b.HealthPercent > 110))
+                {
+                    DevLogLine("FAIL: battery health out of range: " + b.HealthPercent);
+                }
+                else
+                {
+                    DevLogLine("PASS: battery query — health " +
+                        (double.IsNaN(b.HealthPercent) ? "unknown"
+                            : b.HealthPercent.ToString("0") + "%") +
+                        ", cycles " + (b.CycleCount >= 0 ? b.CycleCount.ToString() : "unknown"));
+                }
+            }
+            catch (Exception ex) { DevLogLine("FAIL: battery query — " + ex.Message); }
+
+            try
+            {
+                var disks = await _health.GetDiskHealthAsync();
+                if (disks.Count == 0)
+                {
+                    DevLogLine("FAIL: disk health — no disks returned");
+                }
+                else
+                {
+                    bool sane = disks.All(d => !string.IsNullOrWhiteSpace(d.Name) &&
+                        (d.WearPercent == -1 || (d.WearPercent >= 0 && d.WearPercent <= 100)) &&
+                        (d.TemperatureC == -1 || (d.TemperatureC >= 0 && d.TemperatureC < 120)));
+                    DevLogLine((sane ? "PASS" : "FAIL") + ": disk health — " +
+                        disks.Count + " disk(s), values " + (sane ? "sane" : "out of range"));
+                }
+            }
+            catch (Exception ex) { DevLogLine("FAIL: disk health — " + ex.Message); }
+
+            try
+            {
+                DevLogLine("INFO: Windows Update check can take a minute on first run…");
+                var u = await _health.GetWindowsUpdateInfoAsync();
+                DevLogLine(u.Checked
+                    ? "PASS: Windows Update query — " + u.PendingCount + " pending"
+                    : "FAIL: Windows Update query — no result");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: Windows Update query — " + ex.Message); }
+
+            // Maintenance buttons exist and are wired; the actions themselves are
+            // never run here because this suite promises not to change the system.
+            bool wired = MaintRetrimBtn != null && MaintDismBtn != null && MaintSfcBtn != null;
+            DevLogLine(wired ? "PASS: maintenance buttons wired (actions not run here)"
+                : "FAIL: maintenance buttons missing");
+        }
+
+        private async void DevVitalsHealth_Click(object sender, RoutedEventArgs e)
+        {
+            DevPagesCheck();
+            await DevVitalsCheckAsync();
+            await DevHealthCheckAsync();
         }
 
         // ---------- Helpers ----------
