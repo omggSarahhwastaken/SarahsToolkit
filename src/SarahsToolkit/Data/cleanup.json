@@ -1,1 +1,146 @@
-[{"Description":"Your account's temp folders","Id":"temp.user","Name":"User temp files","Paths":["%TEMP%\\*","%LOCALAPPDATA%\\Temp\\*"],"QuickClean":true},{"Description":"Windows Temp and Prefetch","Id":"temp.windows","Name":"Windows temp files","Paths":["C:\\Windows\\Temp\\*","C:\\Windows\\Prefetch\\*"],"QuickClean":true},{"Description":"Empties the Recycle Bin","Id":"recycle.bin","Name":"Recycle Bin","QuickClean":true,"Special":"recyclebin"},{"Description":"Chrome, Edge, Firefox, Opera, Brave","Id":"browser.cache","Name":"Browser caches","Paths":["%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache\\*","%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Code Cache\\*","%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache\\*","%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Code Cache\\*","%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2\\*","%APPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2\\*","%APPDATA%\\Opera Software\\Opera Stable\\Cache\\*","%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Cache\\*"],"QuickClean":true},{"Description":"Windows Update peer-to-peer cache","Id":"delivery.opt","Name":"Delivery Optimization cache","Paths":["C:\\Windows\\SoftwareDistribution\\DeliveryOptimization\\*"],"QuickClean":true,"StartServices":["DoSvc"],"StopServices":["DoSvc"]},{"Description":"NVIDIA, AMD, Intel and DirectX shader caches","Id":"shader.cache","Name":"Shader & GPU caches","Paths":["%LOCALAPPDATA%\\NVIDIA\\DXCache\\*","%LOCALAPPDATA%\\NVIDIA\\GLCache\\*","%APPDATA%\\NVIDIA\\ComputeCache\\*","%LOCALAPPDATA%\\AMD\\DxCache\\*","%LOCALAPPDATA%\\AMD\\GLCache\\*","%LOCALAPPDATA%\\Intel\\ShaderCache\\*","%LOCALAPPDATA%\\D3DSCache\\*","%PROGRAMDATA%\\NVIDIA Corporation\\NV_Cache\\*"],"QuickClean":false},{"Description":"Downloaded update files","Id":"update.cache","Name":"Windows Update cache","Paths":["C:\\Windows\\SoftwareDistribution\\Download\\*"],"QuickClean":false,"StartServices":["wuauserv","bits"],"StopServices":["wuauserv","bits"]},{"Description":"Steam, Epic, Roblox, Minecraft, Rockstar, EA, Ubisoft, Battle.net, FiveM, VRChat, DCS, Bloxstrap","Id":"game.caches","Name":"Game launcher caches","Paths":["%LOCALAPPDATA%\\Bloxstrap\\Logs\\*","C:\\Program Files (x86)\\Steam\\logs\\*","%USERPROFILE%\\Saved Games\\DCS\\Logs\\*","%USERPROFILE%\\AppData\\LocalLow\\VRChat\\VRChat\\Cache-WindowsPlayer\\*","%LOCALAPPDATA%\\FiveM\\FiveM.app\\logs\\*","%LOCALAPPDATA%\\FiveM\\FiveM.app\\crashes\\*","%LOCALAPPDATA%\\FiveM\\FiveM.app\\cache\\*","%LOCALAPPDATA%\\Rockstar Games\\GTA V\\*","%LOCALAPPDATA%\\Rockstar Games\\Launcher\\CrashLogs\\*","%USERPROFILE%\\Documents\\Rockstar Games\\Social Club\\*","%LOCALAPPDATA%\\Roblox\\logs\\*","%LOCALAPPDATA%\\Roblox\\Versions\\version-*\\logs\\*","%LOCALAPPDATA%\\Roblox\\Versions\\version-*\\cache\\*","%TEMP%\\Roblox\\*","%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\logs\\*","%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache*\\*","%LOCALAPPDATA%\\Ubisoft Game Launcher\\cache\\*","%APPDATA%\\.minecraft\\logs\\*","%PROGRAMDATA%\\Blizzard Entertainment\\Battle.net\\Cache\\*","%PROGRAMDATA%\\Battle.net\\Agent\\*","%LOCALAPPDATA%\\Electronic Arts\\EA Desktop\\Cache\\*","%LOCALAPPDATA%\\Electronic Arts\\EA Desktop\\Logs\\*","%PROGRAMDATA%\\EA Desktop\\Logs\\*","%LOCALAPPDATA%\\EADesktop\\cache\\*","%LOCALAPPDATA%\\EALaunchHelper\\cache\\*","%LOCALAPPDATA%\\Link2EA\\cache\\*"],"QuickClean":false},{"Description":"Discord, Spotify, Telegram, Signal, Office, Adobe","Id":"app.caches","Name":"App caches","Paths":["%APPDATA%\\discord\\Cache\\*","%APPDATA%\\discord\\Code Cache\\*","%APPDATA%\\discord\\GPUCache\\*","%APPDATA%\\discordcanary\\Cache\\*","%APPDATA%\\discordcanary\\Code Cache\\*","%APPDATA%\\discordcanary\\GPUCache\\*","%APPDATA%\\discordptb\\Cache\\*","%APPDATA%\\discordptb\\Code Cache\\*","%APPDATA%\\discordptb\\GPUCache\\*","%LOCALAPPDATA%\\Discord\\Cache\\*","%LOCALAPPDATA%\\Discord\\Code Cache\\*","%LOCALAPPDATA%\\Discord\\GPUCache\\*","%APPDATA%\\Spotify\\Storage\\*","%APPDATA%\\Telegram Desktop\\tdata\\user_data\\cache\\*","%APPDATA%\\Telegram Desktop\\tdata\\user_data\\wvbots\\cache\\*","%APPDATA%\\Telegram Desktop\\tdata\\emoji\\*","%APPDATA%\\Signal\\Cache\\*","%APPDATA%\\Signal\\Code Cache\\*","%APPDATA%\\Signal\\GPUCache\\*","%APPDATA%\\Signal\\logs\\*","%APPDATA%\\Signal\\temp\\*","%LOCALAPPDATA%\\Microsoft\\Office\\16.0\\OfficeFileCache\\*","%LOCALAPPDATA%\\Adobe\\ARM\\*"],"QuickClean":false},{"Description":"Minidumps and Windows Error Reporting files","Id":"crash.dumps","Name":"Crash dumps & error reports","Paths":["C:\\Windows\\Minidump\\*","C:\\Windows\\LiveKernelReports\\*","%LOCALAPPDATA%\\CrashDumps\\*","%PROGRAMDATA%\\Microsoft\\Windows\\WER\\*"],"QuickClean":false},{"Description":"Rebuild automatically on next sign-in","Id":"thumb.cache","Name":"Thumbnail & icon caches","Paths":["%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\thumbcache_*","%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\iconcache_*"],"QuickClean":false}]
+[
+  {
+    "Description": "Your account's temp folders",
+    "Id": "temp.user",
+    "Name": "User temp files",
+    "Paths": [
+      "%TEMP%\\*",
+      "%LOCALAPPDATA%\\Temp\\*"
+    ],
+    "QuickClean": true
+  },
+  {
+    "Description": "Windows Temp and Prefetch",
+    "Id": "temp.windows",
+    "Name": "Windows temp files",
+    "Paths": [
+      "C:\\Windows\\Temp\\*",
+      "C:\\Windows\\Prefetch\\*"
+    ],
+    "QuickClean": true
+  },
+  {
+    "Description": "Chrome, Edge, Firefox, Opera, Brave",
+    "Id": "browser.cache",
+    "Name": "Browser caches",
+    "Paths": [
+      "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache\\*",
+      "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Code Cache\\*",
+      "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache\\*",
+      "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Code Cache\\*",
+      "%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2\\*",
+      "%APPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2\\*",
+      "%APPDATA%\\Opera Software\\Opera Stable\\Cache\\*",
+      "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Cache\\*"
+    ],
+    "QuickClean": true
+  },
+  {
+    "Description": "Windows Update peer-to-peer cache",
+    "Id": "delivery.opt",
+    "Name": "Delivery Optimization cache",
+    "Paths": [
+      "C:\\Windows\\SoftwareDistribution\\DeliveryOptimization\\*"
+    ],
+    "QuickClean": true,
+    "StartServices": [
+      "DoSvc"
+    ],
+    "StopServices": [
+      "DoSvc"
+    ]
+  },
+  {
+    "Description": "NVIDIA, AMD, Intel and DirectX shader caches",
+    "Id": "shader.cache",
+    "Name": "Shader & GPU caches",
+    "Paths": [
+      "%LOCALAPPDATA%\\NVIDIA\\DXCache\\*",
+      "%LOCALAPPDATA%\\NVIDIA\\GLCache\\*",
+      "%APPDATA%\\NVIDIA\\ComputeCache\\*",
+      "%LOCALAPPDATA%\\AMD\\DxCache\\*",
+      "%LOCALAPPDATA%\\AMD\\GLCache\\*",
+      "%LOCALAPPDATA%\\Intel\\ShaderCache\\*",
+      "%LOCALAPPDATA%\\D3DSCache\\*",
+      "%PROGRAMDATA%\\NVIDIA Corporation\\NV_Cache\\*"
+    ],
+    "QuickClean": false
+  },
+  {
+    "Description": "Downloaded update files",
+    "Id": "update.cache",
+    "Name": "Windows Update cache",
+    "Paths": [
+      "C:\\Windows\\SoftwareDistribution\\Download\\*"
+    ],
+    "QuickClean": false,
+    "StartServices": [
+      "wuauserv",
+      "bits"
+    ],
+    "StopServices": [
+      "wuauserv",
+      "bits"
+    ]
+  },
+  {
+    "Description": "Steam, Epic, Roblox, Minecraft, Rockstar, EA, Ubisoft, Battle.net, FiveM, VRChat, DCS, Bloxstrap",
+    "Id": "game.caches",
+    "Name": "Game launcher caches",
+    "Paths": [
+      "%USERPROFILE%\\AppData\\LocalLow\\VRChat\\VRChat\\Cache-WindowsPlayer\\*",
+      "%LOCALAPPDATA%\\FiveM\\FiveM.app\\cache\\*",
+      "%LOCALAPPDATA%\\Roblox\\Versions\\version-*\\cache\\*",
+      "%TEMP%\\Roblox\\*",
+      "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache*\\*",
+      "%LOCALAPPDATA%\\Ubisoft Game Launcher\\cache\\*",
+      "%PROGRAMDATA%\\Blizzard Entertainment\\Battle.net\\Cache\\*",
+      "%PROGRAMDATA%\\Battle.net\\Agent\\*",
+      "%LOCALAPPDATA%\\Electronic Arts\\EA Desktop\\Cache\\*",
+      "%LOCALAPPDATA%\\EADesktop\\cache\\*",
+      "%LOCALAPPDATA%\\EALaunchHelper\\cache\\*",
+      "%LOCALAPPDATA%\\Link2EA\\cache\\*"
+    ],
+    "QuickClean": false
+  },
+  {
+    "Description": "Discord, Spotify, Telegram, Signal, Office, Adobe",
+    "Id": "app.caches",
+    "Name": "App caches",
+    "Paths": [
+      "%APPDATA%\\discord\\Cache\\*",
+      "%APPDATA%\\discord\\Code Cache\\*",
+      "%APPDATA%\\discord\\GPUCache\\*",
+      "%APPDATA%\\discordcanary\\Cache\\*",
+      "%APPDATA%\\discordcanary\\Code Cache\\*",
+      "%APPDATA%\\discordcanary\\GPUCache\\*",
+      "%APPDATA%\\discordptb\\Cache\\*",
+      "%APPDATA%\\discordptb\\Code Cache\\*",
+      "%APPDATA%\\discordptb\\GPUCache\\*",
+      "%LOCALAPPDATA%\\Discord\\Cache\\*",
+      "%LOCALAPPDATA%\\Discord\\Code Cache\\*",
+      "%LOCALAPPDATA%\\Discord\\GPUCache\\*",
+      "%APPDATA%\\Spotify\\Storage\\*",
+      "%APPDATA%\\Telegram Desktop\\tdata\\user_data\\cache\\*",
+      "%APPDATA%\\Telegram Desktop\\tdata\\user_data\\wvbots\\cache\\*",
+      "%APPDATA%\\Telegram Desktop\\tdata\\emoji\\*",
+      "%APPDATA%\\Signal\\Cache\\*",
+      "%APPDATA%\\Signal\\Code Cache\\*",
+      "%APPDATA%\\Signal\\GPUCache\\*",
+      "%APPDATA%\\Signal\\temp\\*",
+      "%LOCALAPPDATA%\\Microsoft\\Office\\16.0\\OfficeFileCache\\*",
+      "%LOCALAPPDATA%\\Adobe\\ARM\\*"
+    ],
+    "QuickClean": false
+  },
+  {
+    "Description": "Rebuild automatically on next sign-in",
+    "Id": "thumb.cache",
+    "Name": "Thumbnail & icon caches",
+    "Paths": [
+      "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\thumbcache_*",
+      "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\iconcache_*"
+    ],
+    "QuickClean": false
+  }
+]
