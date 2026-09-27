@@ -194,5 +194,131 @@ namespace SarahsToolkit.Services
                 "Write-Output 'System maintenance done.'";
             return Task.Run(() => PowerShellRunner.RunScript(script, 20));
         }
+
+        // ---------- Extra cleanup (moved out of Cleanup: not temp/cache) ----------
+
+        public Task<PowerShellResult> EmptyRecycleBinAsync()
+        {
+            string script =
+                "Clear-RecycleBin -Force -ErrorAction SilentlyContinue; " +
+                "Write-Output 'Recycle Bin emptied.'";
+            return Task.Run(() => PowerShellRunner.RunScript(script, 2));
+        }
+
+        public Task<PowerShellResult> ClearCrashDumpsAsync()
+        {
+            var sb = new StringBuilder();
+            sb.Append("$total = 0; ");
+            sb.Append("$targets = @('C:\\Windows\\Minidump', \"$env:PROGRAMDATA\\Microsoft\\Windows\\WER\", \"$env:LOCALAPPDATA\\CrashDumps\", 'C:\\Windows\\MEMORY.DMP'); ");
+            sb.Append("foreach ($t in $targets) { ");
+            sb.Append("$it = Get-Item $t -Force -ErrorAction SilentlyContinue; ");
+            sb.Append("if (-not $it) { continue }; ");
+            sb.Append("$size = (Get-ChildItem $t -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
+            sb.Append("if ($size) { $total += $size }; ");
+            sb.Append("if ($it.PSIsContainer) { Remove-Item \"$t\\*\" -Recurse -Force -ErrorAction SilentlyContinue } ");
+            sb.Append("else { Remove-Item $t -Force -ErrorAction SilentlyContinue } }; ");
+            sb.Append("Write-Output ('Crash dumps cleared. Freed: ' + [math]::Round($total / 1MB, 1) + ' MB'); ");
+            return Task.Run(() => PowerShellRunner.RunScript(sb.ToString(), 5));
+        }
+
+        public Task<PowerShellResult> ClearGameLogsAsync()
+        {
+            string[] patterns = new string[]
+            {
+                "$env:LOCALAPPDATA\\Bloxstrap\\Logs",
+                "C:\\Program Files (x86)\\Steam\\logs",
+                "$env:USERPROFILE\\Saved Games\\DCS\\Logs",
+                "$env:LOCALAPPDATA\\FiveM\\FiveM.app\\logs",
+                "$env:LOCALAPPDATA\\FiveM\\FiveM.app\\crashes",
+                "$env:LOCALAPPDATA\\FiveM\\FiveM.app\\crashometry",
+                "$env:LOCALAPPDATA\\Rockstar Games\\GTA V",
+                "$env:LOCALAPPDATA\\Rockstar Games\\Launcher\\CrashLogs",
+                "$env:USERPROFILE\\Documents\\Rockstar Games\\Social Club",
+                "$env:LOCALAPPDATA\\Roblox\\logs",
+                "$env:LOCALAPPDATA\\Roblox\\Versions\\version-*\\logs",
+                "$env:LOCALAPPDATA\\EpicGamesLauncher\\Saved\\logs",
+                "$env:APPDATA\\.minecraft\\logs",
+                "$env:LOCALAPPDATA\\Electronic Arts\\EA Desktop\\Logs",
+                "$env:PROGRAMDATA\\EA Desktop\\Logs",
+                "$env:APPDATA\\Signal\\logs"
+            };
+            var sb = new StringBuilder();
+            sb.Append("$total = 0; $n = 0; ");
+            sb.Append("$patterns = @(");
+            for (int i = 0; i < patterns.Length; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                sb.Append("\"" + patterns[i] + "\"");
+            }
+            sb.Append("); ");
+            sb.Append("foreach ($pat in $patterns) { ");
+            sb.Append("foreach ($r in (Resolve-Path $pat -ErrorAction SilentlyContinue)) { ");
+            sb.Append("$p = $r.Path; ");
+            sb.Append("$size = (Get-ChildItem $p -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
+            sb.Append("if ($size) { $total += $size }; ");
+            sb.Append("$n++; ");
+            sb.Append("Remove-Item \"$p\\*\" -Recurse -Force -ErrorAction SilentlyContinue; } }; ");
+            sb.Append("Write-Output ('Game/app logs cleared (' + $n + ' folders). Freed: ' + [math]::Round($total / 1MB, 1) + ' MB'); ");
+            return Task.Run(() => PowerShellRunner.RunScript(sb.ToString(), 5));
+        }
+
+        public Task<PowerShellResult> RemoveWindowsOldAsync()
+        {
+            var sb = new StringBuilder();
+            sb.Append("if (-not (Test-Path 'C:\\Windows.old')) { Write-Output 'No Windows.old folder found. Nothing to remove.' } ");
+            sb.Append("else { ");
+            sb.Append("$size = (Get-ChildItem 'C:\\Windows.old' -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
+            sb.Append("takeown /F 'C:\\Windows.old' /A /R /D Y >$null 2>&1; ");
+            sb.Append("icacls 'C:\\Windows.old' /grant '*S-1-5-32-544:F' /T /C /Q >$null 2>&1; ");
+            sb.Append("Remove-Item 'C:\\Windows.old' -Recurse -Force -ErrorAction SilentlyContinue; ");
+            sb.Append("if (Test-Path 'C:\\Windows.old') { Write-Output 'Windows.old could not be fully removed.' } ");
+            sb.Append("else { Write-Output ('Windows.old removed. Freed: ' + [math]::Round($size / 1GB, 2) + ' GB') } }; ");
+            return Task.Run(() => PowerShellRunner.RunScript(sb.ToString(), 15));
+        }
+
+        public Task<PowerShellResult> RemoveDriverLeftoversAsync()
+        {
+            var sb = new StringBuilder();
+            sb.Append("$total = 0; $n = 0; ");
+            sb.Append("foreach ($d in @('C:\\AMD', 'C:\\NVIDIA', 'C:\\Intel')) { ");
+            sb.Append("if (Test-Path $d) { ");
+            sb.Append("$size = (Get-ChildItem $d -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
+            sb.Append("if ($size) { $total += $size }; ");
+            sb.Append("$n++; ");
+            sb.Append("Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; } }; ");
+            sb.Append("if ($n -eq 0) { Write-Output 'No driver installer leftover folders found.' } ");
+            sb.Append("else { Write-Output ('Removed ' + $n + ' folder(s). Freed: ' + [math]::Round($total / 1GB, 2) + ' GB') }; ");
+            return Task.Run(() => PowerShellRunner.RunScript(sb.ToString(), 10));
+        }
+
+        public Task<PowerShellResult> DeleteRestorePointsAsync()
+        {
+            string script =
+                "vssadmin delete shadows /all /quiet 2>&1 | Out-Null; " +
+                "Write-Output 'System restore points deleted.'";
+            return Task.Run(() => PowerShellRunner.RunScript(script, 5));
+        }
+
+        public Task<PowerShellResult> ResetStoreCacheAsync()
+        {
+            var sb = new StringBuilder();
+            sb.Append("$wasOpen = @(Get-Process 'WinStore.App' -ErrorAction SilentlyContinue).Count -gt 0; ");
+            sb.Append("Start-Process wsreset.exe -Wait; ");
+            sb.Append("Start-Sleep -Seconds 2; ");
+            sb.Append("if (-not $wasOpen) { Stop-Process -Name 'WinStore.App' -Force -ErrorAction SilentlyContinue }; ");
+            sb.Append("Write-Output 'Microsoft Store cache reset done.'; ");
+            return Task.Run(() => PowerShellRunner.RunScript(sb.ToString(), 5));
+        }
+
+        public Task<PowerShellResult> CrashHistoryAsync()
+        {
+            var sb = new StringBuilder();
+            sb.Append("$evts = Get-WinEvent -FilterHashtable @{ LogName='Application','System'; Level=2 } -MaxEvents 25 -ErrorAction SilentlyContinue | ForEach-Object { ");
+            sb.Append("[pscustomobject]@{ Time=$_.TimeCreated; Log=$_.LogName; Source=$_.ProviderName; Id=$_.Id; ");
+            sb.Append("Message=$(if ($_.Message) { $_.Message.Substring(0, [Math]::Min(110, $_.Message.Length)) } else { '' }) } }; ");
+            sb.Append("if ($evts) { $evts | Format-Table -AutoSize | Out-String -Width 220 | Write-Output } ");
+            sb.Append("else { Write-Output 'No recent error events found.' }; ");
+            return Task.Run(() => PowerShellRunner.RunScript(sb.ToString(), 3));
+        }
     }
 }
