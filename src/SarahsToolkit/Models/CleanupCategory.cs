@@ -10,5 +10,7 @@ namespace SarahsToolkit.Models
         public bool QuickClean { get; set; }
         public List<string> Paths { get; set; } = new List<string>();
         public string Special { get; set; } // "recyclebin" or null
+        public List<string> StopServices { get; set; } = new List<string>();
+        public List<string> StartServices { get; set; } = new List<string>();
     }
 }
