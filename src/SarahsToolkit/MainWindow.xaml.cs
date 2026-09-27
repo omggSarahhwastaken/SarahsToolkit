@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -69,6 +71,9 @@ namespace SarahsToolkit
 
             SetStatus("Ready.");
             await RefreshDebloatInstalledAsync();
+
+            // Silent update check on every launch: only speaks up if an update exists.
+            await CheckForUpdatesOnLaunchAsync();
         }
 
         // ---------- Tweaks ----------
@@ -401,17 +406,67 @@ namespace SarahsToolkit
             UpdateInfo info = await _updates.CheckForUpdatesAsync();
             if (info.Available)
             {
-                UpdateLabel.Text = "Update available: " + info.Version;
-                var open = MessageBox.Show("Version " + info.Version + " is available.\n\nOpen the release page to download it?",
-                    "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Information);
-                if (open == MessageBoxResult.Yes)
-                    Process.Start(new ProcessStartInfo(info.Url) { UseShellExecute = true });
+                UpdateLabel.Text = "Update available: v" + info.Version;
+                await PromptAndInstallUpdateAsync(info);
             }
             else
             {
                 UpdateLabel.Text = info.Message;
             }
             SetStatus("Ready.");
+        }
+
+        private async Task CheckForUpdatesOnLaunchAsync()
+        {
+            try
+            {
+                UpdateInfo info = await _updates.CheckForUpdatesAsync();
+                if (info.Available)
+                    await PromptAndInstallUpdateAsync(info);
+            }
+            catch
+            {
+                // Never break launch because the update check had a bad day.
+            }
+        }
+
+        private async Task PromptAndInstallUpdateAsync(UpdateInfo info)
+        {
+            string msg = "Version " + info.Version + " is available." +
+                (string.IsNullOrWhiteSpace(info.Notes) ? "" : "\n\n" + info.Notes) +
+                "\n\nDownload and install it now?";
+            var go = MessageBox.Show(msg, "Sarah's Toolkit - Update available",
+                MessageBoxButton.YesNo, MessageBoxImage.Information);
+            if (go != MessageBoxResult.Yes)
+                return;
+
+            SetStatus("Downloading update...");
+            try
+            {
+                string tmp = Path.Combine(Path.GetTempPath(), "SarahsToolkitSetup_update.exe");
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd("SarahsToolkit");
+                    client.Timeout = TimeSpan.FromMinutes(10);
+                    using (var resp = await client.GetAsync(info.Url, HttpCompletionOption.ResponseHeadersRead))
+                    {
+                        resp.EnsureSuccessStatusCode();
+                        using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+                        {
+                            await resp.Content.CopyToAsync(fs);
+                        }
+                    }
+                }
+                SetStatus("Launching installer...");
+                Process.Start(new ProcessStartInfo(tmp) { UseShellExecute = true });
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not download the update:\n" + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                SetStatus("Ready.");
+            }
         }
 
         // ---------- Helpers ----------
