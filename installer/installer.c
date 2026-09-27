@@ -918,6 +918,9 @@ static void DoInstall(const char *selfPath) {
     printf("  %s installed successfully!\n", APP_DISPLAY_NAME);
     printf("  Installed to: %s\n", installDir);
     printf("==============================================================\n");
+    /* Auto-launch the app so an update flows straight back into it. */
+    printf("  Launching %s...\n", APP_DISPLAY_NAME);
+    ShellExecuteA(NULL, "open", target, NULL, installDir, SW_SHOWNORMAL);
     PauseExit(0);
 }
 
