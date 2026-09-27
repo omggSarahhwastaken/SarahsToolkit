@@ -255,6 +255,9 @@
                                                        FontSize="14" FontWeight="SemiBold"
                                                        HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </Grid>
+                                        <TextBlock x:Name="VitalRamPct" Text="" FontSize="10"
+                                                   Foreground="{StaticResource DkMutedBrush}"
+                                                   HorizontalAlignment="Right" Margin="0,0,0,2"/>
                                         <stk:Sparkline x:Name="VitalRamGraph" Height="44" LineColor="#4CAF50"/>
                                     </StackPanel>
                                 </Border>

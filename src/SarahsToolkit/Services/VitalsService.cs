@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace SarahsToolkit.Services
@@ -39,11 +40,31 @@ namespace SarahsToolkit.Services
         public double Cpu { get; private set; } = double.NaN;
         public double Gpu { get; private set; } = double.NaN;
         public double Ram { get; private set; } = double.NaN;
+        public double RamUsedGb { get; private set; } = double.NaN;
+        public double RamTotalGb { get; private set; } = double.NaN;
         public double Disk { get; private set; } = double.NaN;
         public double NetMbps { get; private set; } = double.NaN;
         public double PingMs { get; private set; } = double.NaN;
 
         public bool HasGpu { get; private set; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MEMORYSTATUSEX
+        {
+            public uint dwLength;
+            public uint dwMemoryLoad;
+            public ulong ullTotalPhys;
+            public ulong ullAvailPhys;
+            public ulong ullTotalPageFile;
+            public ulong ullAvailPageFile;
+            public ulong ullTotalVirtual;
+            public ulong ullAvailVirtual;
+            public ulong ullAvailExtendedVirtual;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
 
         private readonly VitalHistory _cpuHist = new VitalHistory(HistoryLength);
         private readonly VitalHistory _gpuHist = new VitalHistory(HistoryLength);
@@ -156,7 +177,8 @@ namespace SarahsToolkit.Services
                     }
                 }
                 double cpu = double.NaN, gpu = double.NaN, ram = double.NaN,
-                       disk = double.NaN, netMbps = double.NaN;
+                       disk = double.NaN, netMbps = double.NaN,
+                       ramUsedGb = double.NaN, ramTotalGb = double.NaN;
                 await Task.Run(() =>
                 {
                     EnsureCounters();
@@ -170,6 +192,16 @@ namespace SarahsToolkit.Services
                         double v = SafeRead(_ram);
                         if (!double.IsNaN(v)) ram = Math.Max(0, Math.Min(100, v));
                     }
+                    try
+                    {
+                        var ms = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
+                        if (GlobalMemoryStatusEx(ref ms) && ms.ullTotalPhys > 0)
+                        {
+                            ramTotalGb = ms.ullTotalPhys / 1073741824.0;
+                            ramUsedGb = (ms.ullTotalPhys - ms.ullAvailPhys) / 1073741824.0;
+                        }
+                    }
+                    catch { }
                     if (_disk != null)
                     {
                         double v = SafeRead(_disk);
@@ -208,6 +240,7 @@ namespace SarahsToolkit.Services
                 {
                     if (_disposed) return;
                     Cpu = cpu; Gpu = gpu; Ram = ram; Disk = disk; NetMbps = netMbps;
+                    RamUsedGb = ramUsedGb; RamTotalGb = ramTotalGb;
                     _cpuHist.Push(cpu); _gpuHist.Push(gpu); _ramHist.Push(ram);
                     _diskHist.Push(disk); _netHist.Push(netMbps);
                     // PingMs keeps its last value between pings so the readout

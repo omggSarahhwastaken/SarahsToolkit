@@ -632,7 +632,10 @@ namespace SarahsToolkit
                     VitalGpuCard.Visibility = Visibility.Collapsed;
                 }
                 SetVital(VitalRamVal, VitalRamGraph, VitalRamDot, _vitals.Ram, _vitals.RamHistory,
-                    v => v.ToString("0") + "%");
+                    v => double.IsNaN(_vitals.RamUsedGb) || double.IsNaN(_vitals.RamTotalGb)
+                        ? "—"
+                        : _vitals.RamUsedGb.ToString("0.0") + "/" + _vitals.RamTotalGb.ToString("0.0") + " GB");
+                VitalRamPct.Text = double.IsNaN(_vitals.Ram) ? "" : _vitals.Ram.ToString("0") + "% used";
                 SetVital(VitalDiskVal, VitalDiskGraph, VitalDiskDot, _vitals.Disk, _vitals.DiskHistory,
                     v => v.ToString("0") + "%");
                 SetVital(VitalNetVal, VitalNetGraph, VitalNetDot, _vitals.NetMbps, _vitals.NetHistory,
