@@ -40,6 +40,9 @@ namespace SarahsToolkit
         private List<ServiceDefinition> _serviceDefs = new List<ServiceDefinition>();
         private bool _servicesRefreshed = false;
         private bool _dashboardLoaded = false;
+        private readonly GameFeedService _games = new GameFeedService();
+        private DispatcherTimer _dashTimer;
+        private bool _dashboardLoading;
         private CancellationTokenSource _cleanCts;
         private bool _buildingUi;
 
@@ -162,6 +165,16 @@ namespace SarahsToolkit
 
             // Silent update check on every launch: only speaks up if an update exists.
             await CheckForUpdatesOnLaunchAsync();
+
+            // Home dashboard: load on launch (Nav_Checked can fire before the pages
+            // exist, so it can't be trusted to do the first load) and keep it live
+            // with a 1-second refresh while Home is visible.
+            _dashboardLoaded = true;
+            await LoadDashboardAsync();
+            BuildGameFeed();
+            _dashTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _dashTimer.Tick += DashTimer_Tick;
+            _dashTimer.Start();
         }
 
         // ---------- Navigation ----------
@@ -258,13 +271,25 @@ namespace SarahsToolkit
 
         // ---------- Dashboard ----------
 
-        private async Task LoadDashboardAsync()
+        private void DashTimer_Tick(object sender, EventArgs e)
         {
-            SetStatus("Reading system info...");
-            DashCpu.Text = "Reading…";
-            DashGpu.Text = "Reading…";
+            if (WindowState == WindowState.Minimized) return;
+            if (PageDashboard == null || PageDashboard.Visibility != Visibility.Visible) return;
+            _ = LoadDashboardAsync(quiet: true);
+        }
+
+        private async Task LoadDashboardAsync(bool quiet = false)
+        {
+            if (_dashboardLoading) return;
+            _dashboardLoading = true;
             try
             {
+                if (!quiet)
+                {
+                    SetStatus("Reading system info...");
+                    DashCpu.Text = "Reading…";
+                    DashGpu.Text = "Reading…";
+                }
                 var snap = await _diag.GetDashboardSnapshotAsync();
 
                 DashCpu.Text = string.IsNullOrWhiteSpace(snap.Cpu) ? "Unknown" : snap.Cpu;
@@ -318,13 +343,20 @@ namespace SarahsToolkit
                     RebootBanner.Visibility = Visibility.Collapsed;
                 }
 
-                SetStatus("Ready.");
+                if (!quiet) SetStatus("Ready.");
             }
             catch (Exception ex)
             {
-                SetStatus("System info unavailable: " + ex.Message);
-                DashCpu.Text = "Unavailable";
-                DashGpu.Text = "Unavailable";
+                if (!quiet)
+                {
+                    SetStatus("System info unavailable: " + ex.Message);
+                    DashCpu.Text = "Unavailable";
+                    DashGpu.Text = "Unavailable";
+                }
+            }
+            finally
+            {
+                _dashboardLoading = false;
             }
         }
 
@@ -342,6 +374,100 @@ namespace SarahsToolkit
         private void DashRefresh_Click(object sender, RoutedEventArgs e)
         {
             _ = LoadDashboardAsync();
+        }
+
+        // ---------- Game release feed (right rail) ----------
+
+        private void BuildGameFeed()
+        {
+            try
+            {
+                var games = _games.LoadUpcoming();
+                GameFeedPanel.Children.Clear();
+                GameFeedCount.Text = games.Count == 1 ? "1 game on the way"
+                    : games.Count + " games on the way";
+                if (games.Count == 0)
+                {
+                    GameFeedPanel.Children.Add(new TextBlock
+                    {
+                        Text = "No upcoming releases in the feed.",
+                        FontSize = 12,
+                        Foreground = (Brush)FindResource("DkMutedBrush"),
+                        TextWrapping = TextWrapping.Wrap
+                    });
+                    return;
+                }
+                var muted = (Brush)FindResource("DkMutedBrush");
+                var accent = (Brush)FindResource("DkAccentBrush");
+                string lastMonth = null;
+                for (int i = 0; i < games.Count; i++)
+                {
+                    var g = games[i];
+                    string month = g.Date.ToString("MMMM yyyy").ToUpperInvariant();
+                    if (month != lastMonth)
+                    {
+                        lastMonth = month;
+                        GameFeedPanel.Children.Add(new TextBlock
+                        {
+                            Text = month,
+                            FontSize = 11,
+                            FontWeight = FontWeights.SemiBold,
+                            Foreground = muted,
+                            Margin = new Thickness(0, i == 0 ? 0 : 14, 0, 6)
+                        });
+                    }
+                    var card = new Border
+                    {
+                        Style = (Style)FindResource("Card"),
+                        Margin = new Thickness(0, 0, 0, 8),
+                        Padding = new Thickness(12)
+                    };
+                    var stack = new StackPanel();
+                    stack.Children.Add(new TextBlock
+                    {
+                        Text = g.Title,
+                        FontSize = 13,
+                        FontWeight = FontWeights.SemiBold,
+                        TextWrapping = TextWrapping.Wrap
+                    });
+                    var dateRow = new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        Margin = new Thickness(0, 4, 0, 0)
+                    };
+                    dateRow.Children.Add(new TextBlock
+                    {
+                        Text = g.Date.ToString("MMM d"),
+                        FontSize = 12,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = accent
+                    });
+                    dateRow.Children.Add(new TextBlock
+                    {
+                        Text = "  ·  " + GameFeedService.RelativeLabel(g.Date),
+                        FontSize = 12,
+                        Foreground = muted
+                    });
+                    stack.Children.Add(dateRow);
+                    if (!string.IsNullOrWhiteSpace(g.Platforms))
+                    {
+                        stack.Children.Add(new TextBlock
+                        {
+                            Text = g.Platforms,
+                            FontSize = 11,
+                            Foreground = muted,
+                            TextWrapping = TextWrapping.Wrap,
+                            Margin = new Thickness(0, 2, 0, 0)
+                        });
+                    }
+                    card.Child = stack;
+                    GameFeedPanel.Children.Add(card);
+                }
+            }
+            catch
+            {
+                // The sidebar must never break the app.
+            }
         }
 
         private async void DashQuickClean_Click(object sender, RoutedEventArgs e)
