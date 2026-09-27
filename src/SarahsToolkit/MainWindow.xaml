@@ -222,6 +222,8 @@
                                         Margin="0,0,10,10" Click="DashSpeedTest_Click"/>
                                 <Button x:Name="DashDebloat" Content="Review bloatware" Width="140"
                                         Margin="0,0,10,10" Click="DashDebloat_Click"/>
+                                <Button x:Name="DashCheckUpdates" Content="Check for updates" Width="140"
+                                        Margin="0,0,10,10" Click="CheckUpdates_Click"/>
                             </WrapPanel>
                         </StackPanel>
                     </ScrollViewer>
