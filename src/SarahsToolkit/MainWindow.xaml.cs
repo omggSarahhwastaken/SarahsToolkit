@@ -35,6 +35,14 @@ namespace SarahsToolkit
             ref int pvAttribute, int cbAttribute);
         private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
+        private const int WM_SETICON = 0x0080;
+        private const int ICON_SMALL = 0;
+        private const int ICON_BIG = 1;
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg,
+            int wParam, IntPtr lParam);
+
         public MainWindow()
         {
             InitializeComponent();
@@ -44,17 +52,20 @@ namespace SarahsToolkit
 
         private void MainWindow_SourceInitialized(object sender, EventArgs e)
         {
-            // Dark title bar to match the app theme (Windows 10 1809+).
             try
             {
                 IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                // Dark title bar to match the app theme (Windows 10 1809+).
                 int dark = 1;
                 DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
                     ref dark, sizeof(int));
+                // Drop the empty default icon from the title bar.
+                SendMessage(hwnd, WM_SETICON, ICON_SMALL, IntPtr.Zero);
+                SendMessage(hwnd, WM_SETICON, ICON_BIG, IntPtr.Zero);
             }
             catch
             {
-                // Title bar just stays light on older Windows; harmless.
+                // Cosmetic only; the app works fine without it.
             }
         }
 
