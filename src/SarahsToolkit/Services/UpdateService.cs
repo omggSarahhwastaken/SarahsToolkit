@@ -12,6 +12,7 @@ namespace SarahsToolkit.Services
     {
         public bool Available { get; set; }
         public string Version { get; set; } = "";
+        public string LocalVersion { get; set; } = "";
         public string Url { get; set; } = "";
         public string Encoding { get; set; } = "";
         public string Notes { get; set; } = "";
@@ -55,6 +56,7 @@ namespace SarahsToolkit.Services
                             {
                                 Available = true,
                                 Version = latest,
+                                LocalVersion = current,
                                 Url = dl,
                                 Encoding = enc,
                                 Notes = notes
