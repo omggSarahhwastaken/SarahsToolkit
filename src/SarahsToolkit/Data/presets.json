@@ -1,57 +1,80 @@
 [
-  {
-    "description": "Safe everyday improvements: less telemetry and background activity, snappier menus and windows. Nothing here changes how games or apps behave.",
-    "id": "balanced",
-    "name": "Balanced",
-    "tweaks": [
-      "privacy.telemetry",
-      "privacy.advertisingId",
-      "privacy.tailoredExperiences",
-      "perf.menuDelay",
-      "perf.startupDelay",
-      "perf.transparency",
-      "perf.animations"
-    ]
-  },
-  {
-    "description": "Prioritizes your game for CPU and GPU time, cuts input lag, and removes background recording overhead. Works on NVIDIA, AMD and Intel \u2014 no vendor-specific changes.",
-    "id": "gaming",
-    "name": "Gaming",
-    "tweaks": [
-      "gaming.gameMode",
-      "gaming.gameDVR",
-      "gaming.fullscreenOpt",
-      "gaming.gpuPriority",
-      "gaming.netThrottle",
-      "gaming.mousePrecision",
-      "gaming.hwScheduling",
-      "perf.powerThrottling",
-      "privacy.telemetry"
-    ]
-  },
-  {
-    "description": "Everything in Gaming, plus aggressive cuts to background disk and CPU activity. Fastest feel overall; laptops may run warmer and some visual effects are turned off.",
-    "id": "max-performance",
-    "name": "Max Performance",
-    "tweaks": [
-      "gaming.gameMode",
-      "gaming.gameDVR",
-      "gaming.fullscreenOpt",
-      "gaming.gpuPriority",
-      "gaming.netThrottle",
-      "gaming.mousePrecision",
-      "gaming.hwScheduling",
-      "perf.powerThrottling",
-      "perf.sysMain",
-      "perf.prefetch",
-      "perf.lastAccess",
-      "perf.menuDelay",
-      "perf.startupDelay",
-      "perf.transparency",
-      "perf.animations",
-      "privacy.telemetry",
-      "privacy.advertisingId",
-      "privacy.tailoredExperiences"
-    ]
-  }
+    {
+        "description": "Safe everyday improvements: less telemetry and background activity, snappier menus and windows. Nothing here changes how games or apps behave.",
+        "id": "balanced",
+        "name": "Balanced",
+        "tweaks": [
+            "privacy.telemetry",
+            "privacy.advertisingId",
+            "privacy.tailoredExperiences",
+            "perf.menuDelay",
+            "perf.startupDelay",
+            "perf.transparency",
+            "perf.animations"
+        ]
+    },
+    {
+        "description": "Prioritizes your game for CPU and GPU time, cuts input lag, and removes background recording overhead. Works on NVIDIA, AMD and Intel \u2014 no vendor-specific changes.",
+        "id": "gaming",
+        "name": "Gaming",
+        "tweaks": [
+            "gaming.gameMode",
+            "gaming.gameDVR",
+            "gaming.fullscreenOpt",
+            "gaming.gpuPriority",
+            "gaming.netThrottle",
+            "gaming.mousePrecision",
+            "gaming.hwScheduling",
+            "perf.powerThrottling",
+            "privacy.telemetry"
+        ]
+    },
+    {
+        "description": "Everything in Gaming, plus aggressive cuts to background disk and CPU activity. Fastest feel overall; laptops may run warmer and some visual effects are turned off.",
+        "id": "max-performance",
+        "name": "Max Performance",
+        "tweaks": [
+            "gaming.gameMode",
+            "gaming.gameDVR",
+            "gaming.fullscreenOpt",
+            "gaming.gpuPriority",
+            "gaming.netThrottle",
+            "gaming.mousePrecision",
+            "gaming.hwScheduling",
+            "perf.powerThrottling",
+            "perf.sysMain",
+            "perf.prefetch",
+            "perf.lastAccess",
+            "perf.menuDelay",
+            "perf.startupDelay",
+            "perf.transparency",
+            "perf.animations",
+            "privacy.telemetry",
+            "privacy.advertisingId",
+            "privacy.tailoredExperiences"
+        ]
+    },
+    {
+        "id": "battery-saver",
+        "name": "Battery Saver",
+        "description": "For laptops on the go: quiets background apps and animations, and undoes the performance tweaks that cost battery \u2014 CPU power throttling and background disk activity.",
+        "tweaks": [
+            "privacy.backgroundApps",
+            "perf.transparency",
+            "perf.animations"
+        ],
+        "revert": [
+            "perf.powerThrottling",
+            "perf.sysMain",
+            "perf.prefetch",
+            "perf.lastAccess",
+            "gaming.hwScheduling"
+        ]
+    },
+    {
+        "id": "stock",
+        "name": "Stock Windows",
+        "description": "The panic button: reverts every tweak back to Windows defaults.",
+        "revertAll": true
+    }
 ]

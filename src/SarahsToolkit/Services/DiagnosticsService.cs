@@ -168,27 +168,40 @@ namespace SarahsToolkit.Services
 
         public Task<PowerShellResult> PackageUpdaterAsync()
         {
+            // 0 = success, -1978335189 (0x8A15002B) = nothing applicable,
+            // -1978335188 (0x8A15002C) = upgrade --all completed with failures.
             string script =
                 "Write-Output 'Upgrading installed packages with winget (10 minute limit)...'; " +
                 "$p = Start-Process -FilePath 'winget' -ArgumentList 'upgrade --all --accept-package-agreements --accept-source-agreements --disable-interactivity --silent' -PassThru -WindowStyle Hidden; " +
                 "if (-not $p.WaitForExit(600000)) { try { $p.Kill() } catch {}; Write-Output 'winget hit the 10 minute limit and was stopped (run Package Updater again later).' } " +
-                "else { Write-Output ('winget finished (exit code ' + $p.ExitCode + ').') }";
+                "elseif ($p.ExitCode -eq 0) { Write-Output 'winget finished successfully.' } " +
+                "elseif ($p.ExitCode -eq -1978335189) { Write-Output 'winget finished: no applicable updates found.' } " +
+                "else { Write-Output ('winget finished with failures (exit code ' + $p.ExitCode + '). Run ''winget upgrade --all'' in a terminal for details.') }";
             return Task.Run(() => PowerShellRunner.RunScript(script, 12));
         }
 
         public Task<PowerShellResult> StoreUpdaterAsync()
         {
+            // The WinRT StoreContext type is resolved at runtime via GetType:
+            // a [Type] literal would die at parse time with "Unable to find
+            // type" on PCs where the Store API is unavailable. winget already
+            // covers Microsoft Store apps, so this is a best-effort second pass.
             string script =
                 "Add-Type -AssemblyName System.Runtime.WindowsRuntime; " +
+                "$storeType = [System.Type]::GetType('Windows.Services.Store.StoreContext, Windows.Services.Store, ContentType=WindowsRuntime'); " +
+                "if (-not $storeType) { Write-Output 'Microsoft Store updates skipped: the Store API is not available on this PC (winget already covers Store apps).' } " +
+                "else { " +
                 "$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]; " +
                 "function Await-Op($op, $t) { try { $task = $asTask.MakeGenericMethod($op.GetType().GetGenericArguments()).Invoke($null, @($op)); if ($task.Wait($t)) { return $task.Result } } catch {}; return $null }; " +
-                "$ctx = [Windows.Services.Store.StoreContext]::GetDefault(); " +
+                "try { " +
+                "$ctx = $storeType.GetMethod('GetDefault').Invoke($null, $null); " +
                 "$upd = Await-Op ($ctx.GetAppAndOptionalStorePackageUpdatesAsync()) 60000; " +
                 "if ($upd -and $upd.Count -gt 0) { " +
                 "Write-Output ('Found ' + $upd.Count + ' Microsoft Store update(s), installing (10 minute limit)...'); " +
                 "$r = Await-Op ($ctx.RequestDownloadAndInstallStorePackageUpdatesAsync($upd)) 600000; " +
                 "Write-Output 'Microsoft Store updates finished.' } " +
-                "else { Write-Output 'No Microsoft Store updates available.' }";
+                "else { Write-Output 'No Microsoft Store updates available.' } } " +
+                "catch { Write-Output 'Microsoft Store updates skipped: the Store API could not be used on this PC (winget already covers Store apps).' } }";
             return Task.Run(() => PowerShellRunner.RunScript(script, 12));
         }
 

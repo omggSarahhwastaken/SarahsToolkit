@@ -785,6 +785,7 @@
                                                                Margin="0,6,0,0" TextWrapping="Wrap"/>
                                                 </StackPanel>
                                             </GroupBox>
+                            <StackPanel x:Name="SecurityTweaksPanel"/>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

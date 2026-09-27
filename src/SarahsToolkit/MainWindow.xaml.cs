@@ -204,6 +204,7 @@ namespace SarahsToolkit
                 _tweakDefs = _tweaks.LoadTweaks();
                 BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
                 BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
+                BuildTweakTab(SecurityTweaksPanel, new[] { "Security" });
             }
             catch (Exception ex)
             {
@@ -1466,8 +1467,9 @@ namespace SarahsToolkit
 
         private bool PresetNeedsReboot(PresetDefinition preset)
         {
-            return (preset.Tweaks ?? Enumerable.Empty<string>())
-                .Select(id => _tweakDefs.FirstOrDefault(t => t.Id == id))
+            var ids = (preset.Tweaks ?? Enumerable.Empty<string>())
+                .Concat(PresetService.ResolveRevertIds(preset, _tweakDefs));
+            return ids.Select(id => _tweakDefs.FirstOrDefault(t => t.Id == id))
                 .Any(tw => tw != null && tw.RequiresReboot);
         }
 
@@ -1521,7 +1523,7 @@ namespace SarahsToolkit
                 "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirm != MessageBoxResult.Yes) return;
 
-            int applied = 0, failed = 0;
+            int applied = 0, reverted = 0, failed = 0;
             foreach (string id in preset.Tweaks ?? Enumerable.Empty<string>())
             {
                 var tw = _tweakDefs.FirstOrDefault(t => t.Id == id);
@@ -1530,12 +1532,25 @@ namespace SarahsToolkit
                 try { _tweaks.Apply(tw); applied++; }
                 catch { failed++; }
             }
-            SetStatus(preset.Name + " preset: " + applied + " setting(s) applied" +
+            foreach (string id in PresetService.ResolveRevertIds(preset, _tweakDefs))
+            {
+                var tw = _tweakDefs.FirstOrDefault(t => t.Id == id);
+                if (tw == null) continue;
+                if (_tweaks.GetState(tw) != TweakState.Applied) continue;
+                try { _tweaks.Revert(tw); reverted++; }
+                catch { failed++; }
+            }
+            var changedParts = new List<string>();
+            if (applied > 0) changedParts.Add(applied + " applied");
+            if (reverted > 0) changedParts.Add(reverted + " reverted");
+            string changed = changedParts.Count > 0 ? string.Join(", ", changedParts) : "no changes";
+            SetStatus(preset.Name + " preset: " + changed +
                 (failed > 0 ? ", " + failed + " failed." : ".") +
                 (needsReboot ? " Restart Windows for full effect." : ""));
-            // Re-sync the Optimize/Customize toggles and the ratings.
+            // Re-sync the Optimize/Customize/Security toggles and the ratings.
             BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
             BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
+            BuildTweakTab(SecurityTweaksPanel, new[] { "Security" });
             RefreshPresetRatings();
         }
 
@@ -2970,8 +2985,9 @@ namespace SarahsToolkit
                 var tweaks = _tweaks.LoadTweaks();
                 int bad = tweaks.Count(t => string.IsNullOrWhiteSpace(t.Id) ||
                     string.IsNullOrWhiteSpace(t.Name) || t.Apply == null);
-                DevLogLine((bad == 0 ? "PASS" : "FAIL") + ": tweaks.json — " +
-                    tweaks.Count + " tweaks, " + bad + " invalid");
+                int dupes = tweaks.GroupBy(t => t.Id).Count(g => g.Count() > 1);
+                DevLogLine(((bad == 0 && dupes == 0) ? "PASS" : "FAIL") + ": tweaks.json — " +
+                    tweaks.Count + " tweaks, " + bad + " invalid, " + dupes + " duplicate ids");
             }
             catch (Exception ex) { DevLogLine("FAIL: tweaks.json — " + ex.Message); }
 
@@ -3010,9 +3026,12 @@ namespace SarahsToolkit
                 var presets = _presets.LoadPresets();
                 var tweakIds = new HashSet<string>(_tweakDefs.Select(t => t.Id));
                 int bad = presets.Count(p => string.IsNullOrWhiteSpace(p.Id) ||
-                    string.IsNullOrWhiteSpace(p.Name) || p.Tweaks == null);
+                    string.IsNullOrWhiteSpace(p.Name) ||
+                    ((p.Tweaks == null || p.Tweaks.Count == 0) &&
+                     (p.Revert == null || p.Revert.Count == 0) && !p.RevertAll));
                 int dangling = presets
-                    .SelectMany(p => p.Tweaks ?? Enumerable.Empty<string>())
+                    .SelectMany(p => (p.Tweaks ?? Enumerable.Empty<string>())
+                        .Concat(p.Revert ?? Enumerable.Empty<string>()))
                     .Count(id => !tweakIds.Contains(id));
                 DevLogLine(((bad == 0 && dangling == 0) ? "PASS" : "FAIL") +
                     ": presets.json — " + presets.Count + " presets, " +
