@@ -17,6 +17,12 @@ namespace SarahsToolkit.Services
         public long BytesFreed { get; set; }
     }
 
+    public class ScanResult
+    {
+        public long Bytes { get; set; }
+        public long Files { get; set; }
+    }
+
     public class CleanupService
     {
         public List<CleanupCategory> LoadCategories()
@@ -29,7 +35,19 @@ namespace SarahsToolkit.Services
 
         public Task<long> ScanAsync(CleanupCategory cat)
         {
-            return Task.Run(() => MeasureCategory(cat));
+            return Task.Run(() => MeasureCategory(cat).bytes);
+        }
+
+        /// <summary>
+        /// Measures a category's size AND file count (for determinate progress).
+        /// </summary>
+        public Task<ScanResult> ScanDetailedAsync(CleanupCategory cat)
+        {
+            return Task.Run(() =>
+            {
+                var (bytes, files) = MeasureCategory(cat);
+                return new ScanResult { Bytes = bytes, Files = files };
+            });
         }
 
         public Task<long> CleanAsync(IEnumerable<CleanupCategory> cats, IProgress<CleanupProgress> progress, CancellationToken ct)
@@ -56,34 +74,41 @@ namespace SarahsToolkit.Services
                         PowerShellRunner.RunScript("Stop-Service -Name " + names + " -Force -ErrorAction SilentlyContinue", 1);
                     }
 
-                    foreach (var rawPath in cat.Paths)
+                    try
                     {
-                        foreach (var search in ResolveSearchPaths(rawPath))
+                        foreach (var rawPath in cat.Paths)
                         {
-                            foreach (var file in SafeEnumerateFiles(search.Dir, search.Pattern))
+                            foreach (var search in ResolveSearchPaths(rawPath))
                             {
-                                ct.ThrowIfCancellationRequested();
-                                try
+                                foreach (var file in SafeEnumerateFiles(search.Dir, search.Pattern))
                                 {
-                                    long len = new FileInfo(file).Length;
-                                    File.Delete(file);
-                                    totalFiles++;
-                                    totalBytes += len;
-                                    if (totalFiles % 50 == 0)
-                                        Report(progress, cat.Name, file, totalFiles, totalBytes);
-                                }
-                                catch
-                                {
-                                    // in use or access denied -> skip
+                                    ct.ThrowIfCancellationRequested();
+                                    try
+                                    {
+                                        long len = new FileInfo(file).Length;
+                                        File.Delete(file);
+                                        totalFiles++;
+                                        totalBytes += len;
+                                        if (totalFiles % 50 == 0)
+                                            Report(progress, cat.Name, file, totalFiles, totalBytes);
+                                    }
+                                    catch
+                                    {
+                                        // in use or access denied -> skip
+                                    }
                                 }
                             }
                         }
                     }
-
-                    if (cat.StartServices != null && cat.StartServices.Count > 0)
+                    finally
                     {
-                        string names = string.Join(",", cat.StartServices.Select(n => "'" + n + "'"));
-                        PowerShellRunner.RunScript("Start-Service -Name " + names + " -ErrorAction SilentlyContinue", 1);
+                        // Always restart category services, even if the run was
+                        // cancelled or blew up mid-category.
+                        if (cat.StartServices != null && cat.StartServices.Count > 0)
+                        {
+                            string names = string.Join(",", cat.StartServices.Select(n => "'" + n + "'"));
+                            PowerShellRunner.RunScript("Start-Service -Name " + names + " -ErrorAction SilentlyContinue", 1);
+                        }
                     }
                 }
 
@@ -103,22 +128,23 @@ namespace SarahsToolkit.Services
             });
         }
 
-        private static long MeasureCategory(CleanupCategory cat)
+        private static (long bytes, long files) MeasureCategory(CleanupCategory cat)
         {
-            if (cat.Special == "recyclebin") return 0;
+            if (cat.Special == "recyclebin") return (0, 0);
             long total = 0;
+            long files = 0;
             foreach (var rawPath in cat.Paths)
             {
                 foreach (var search in ResolveSearchPaths(rawPath))
                 {
                     foreach (var file in SafeEnumerateFiles(search.Dir, search.Pattern))
                     {
-                        try { total += new FileInfo(file).Length; }
+                        try { total += new FileInfo(file).Length; files++; }
                         catch { }
                     }
                 }
             }
-            return total;
+            return (total, files);
         }
 
         private struct SearchPath

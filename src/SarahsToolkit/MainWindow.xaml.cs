@@ -13,6 +13,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Threading;
 using SarahsToolkit.Models;
 using SarahsToolkit.Services;
 
@@ -37,8 +39,23 @@ namespace SarahsToolkit
         private List<DebloatApp> _debloatApps = new List<DebloatApp>();
         private List<ServiceDefinition> _serviceDefs = new List<ServiceDefinition>();
         private bool _servicesRefreshed = false;
+        private bool _dashboardLoaded = false;
         private CancellationTokenSource _cleanCts;
         private bool _buildingUi;
+
+        private class CategoryAnalysis
+        {
+            public CleanupCategory Cat;
+            public long Bytes;
+            public long Files;
+            public CheckBox Box;
+        }
+        private List<CategoryAnalysis> _analyses = new List<CategoryAnalysis>();
+
+        private DispatcherTimer _gaugeTimer;
+        private double _gaugeCurrent;
+        private double _gaugeTarget;
+        private const double GaugeMaxMbps = 1000;
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute,
@@ -84,11 +101,14 @@ namespace SarahsToolkit
             try
             {
                 string v = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
-                VersionText.Text = "v" + (string.IsNullOrEmpty(v) ? "1.0.0" : v);
+                string vt = "v" + (string.IsNullOrEmpty(v) ? "1.0.0" : v);
+                VersionText.Text = vt;
+                RailVersionText.Text = vt;
             }
             catch
             {
                 VersionText.Text = "v1.0.0";
+                RailVersionText.Text = "v1.0.0";
             }
 
             try
@@ -136,6 +156,7 @@ namespace SarahsToolkit
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
 
+            DrawGauge(0);
             SetStatus("Ready.");
             await RefreshDebloatInstalledAsync();
 
@@ -143,7 +164,213 @@ namespace SarahsToolkit
             await CheckForUpdatesOnLaunchAsync();
         }
 
-        // ---------- Tweaks ----------
+        // ---------- Navigation ----------
+
+        private async void Nav_Checked(object sender, RoutedEventArgs e)
+        {
+            var rb = sender as RadioButton;
+            if (rb == null || rb.IsChecked != true) return;
+            // Fires during InitializeComponent before the pages exist.
+            if (PageDashboard == null || PageHost == null) return;
+
+            PageDashboard.Visibility = Visibility.Collapsed;
+            PageCleanup.Visibility = Visibility.Collapsed;
+            PageDebloat.Visibility = Visibility.Collapsed;
+            PageServices.Visibility = Visibility.Collapsed;
+            PageOptimize.Visibility = Visibility.Collapsed;
+            PagePresets.Visibility = Visibility.Collapsed;
+            PageCustomize.Visibility = Visibility.Collapsed;
+            PageNetwork.Visibility = Visibility.Collapsed;
+            PageTools.Visibility = Visibility.Collapsed;
+            PageDev.Visibility = Visibility.Collapsed;
+            PageAbout.Visibility = Visibility.Collapsed;
+
+            switch (rb.Name)
+            {
+                case "NavDashboard":
+                    PageDashboard.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Home";
+                    PageSubtitle.Text = "System overview";
+                    if (!_dashboardLoaded)
+                    {
+                        _dashboardLoaded = true;
+                        await LoadDashboardAsync();
+                    }
+                    break;
+                case "NavCleanup":
+                    PageCleanup.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Cleanup";
+                    PageSubtitle.Text = "Temporary files and caches";
+                    break;
+                case "NavDebloat":
+                    PageDebloat.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Debloat";
+                    PageSubtitle.Text = "Remove unwanted preinstalled apps";
+                    break;
+                case "NavServices":
+                    PageServices.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Services";
+                    PageSubtitle.Text = "Trim unnecessary Windows services";
+                    if (!_servicesRefreshed)
+                    {
+                        _servicesRefreshed = true;
+                        await RefreshServiceStatesAsync();
+                    }
+                    break;
+                case "NavOptimize":
+                    PageOptimize.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Optimize";
+                    PageSubtitle.Text = "Privacy, gaming and performance tweaks";
+                    break;
+                case "NavPresets":
+                    PagePresets.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Presets";
+                    PageSubtitle.Text = "One-click tweak bundles";
+                    RefreshPresetRatings();
+                    break;
+                case "NavCustomize":
+                    PageCustomize.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Customize";
+                    PageSubtitle.Text = "Theme, taskbar, Explorer and Start";
+                    break;
+                case "NavNetwork":
+                    PageNetwork.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Network";
+                    PageSubtitle.Text = "DNS, speed test and rescue";
+                    break;
+                case "NavTools":
+                    PageTools.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Tools";
+                    PageSubtitle.Text = "Diagnostics and system utilities";
+                    break;
+                case "NavDev":
+                    PageDev.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Dev";
+                    PageSubtitle.Text = "Validation suite for the app itself";
+                    break;
+                case "NavAbout":
+                    PageAbout.Visibility = Visibility.Visible;
+                    PageTitle.Text = "About";
+                    PageSubtitle.Text = "Sarah's Toolkit";
+                    break;
+            }
+        }
+
+        // ---------- Dashboard ----------
+
+        private async Task LoadDashboardAsync()
+        {
+            SetStatus("Reading system info...");
+            DashCpu.Text = "Reading…";
+            DashGpu.Text = "Reading…";
+            try
+            {
+                var snap = await _diag.GetDashboardSnapshotAsync();
+
+                DashCpu.Text = string.IsNullOrWhiteSpace(snap.Cpu) ? "Unknown" : snap.Cpu;
+                DashGpu.Text = string.IsNullOrWhiteSpace(snap.Gpu) ? "Unknown" : snap.Gpu;
+
+                if (snap.RamTotalGb > 0)
+                {
+                    double used = Math.Max(0, snap.RamTotalGb - snap.RamFreeGb);
+                    double pct = used / snap.RamTotalGb * 100;
+                    DashRam.Text = used.ToString("0.0") + " / " + snap.RamTotalGb.ToString("0.0") + " GB used";
+                    DashRamBar.Value = pct;
+                    DashRamSub.Text = snap.RamFreeGb.ToString("0.0") + " GB free";
+                    SetDot(DashRamDot, pct >= 90 ? DotColor.Red : pct >= 75 ? DotColor.Amber : DotColor.Green);
+                }
+                else
+                {
+                    DashRam.Text = "Unknown";
+                    SetDot(DashRamDot, DotColor.Gray);
+                }
+
+                if (snap.DiskTotalGb > 0)
+                {
+                    double used = Math.Max(0, snap.DiskTotalGb - snap.DiskFreeGb);
+                    double pct = used / snap.DiskTotalGb * 100;
+                    double freePct = 100 - pct;
+                    DashDisk.Text = snap.DiskFreeGb.ToString("0.0") + " GB free of " + snap.DiskTotalGb.ToString("0.0") + " GB";
+                    DashDiskBar.Value = pct;
+                    DashDiskSub.Text = pct.ToString("0") + "% used";
+                    SetDot(DashDiskDot, freePct <= 10 ? DotColor.Red : freePct <= 20 ? DotColor.Amber : DotColor.Green);
+                }
+                else
+                {
+                    DashDisk.Text = "Unknown";
+                    SetDot(DashDiskDot, DotColor.Gray);
+                }
+
+                DashUptime.Text = string.IsNullOrWhiteSpace(snap.Uptime) ? "Unknown" : snap.Uptime;
+                DashBuild.Text = string.IsNullOrWhiteSpace(snap.WindowsBuild)
+                    ? "" : "Windows build " + snap.WindowsBuild;
+
+                if (snap.PendingReboot)
+                {
+                    DashReboot.Text = "Restart pending";
+                    SetDot(DashRebootDot, DotColor.Red);
+                    RebootBanner.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    DashReboot.Text = "No restart needed";
+                    SetDot(DashRebootDot, DotColor.Green);
+                    RebootBanner.Visibility = Visibility.Collapsed;
+                }
+
+                SetStatus("Ready.");
+            }
+            catch (Exception ex)
+            {
+                SetStatus("System info unavailable: " + ex.Message);
+                DashCpu.Text = "Unavailable";
+                DashGpu.Text = "Unavailable";
+            }
+        }
+
+        private enum DotColor { Green, Amber, Red, Blue, Gray }
+
+        private static void SetDot(Ellipse dot, DotColor color)
+        {
+            string hex = color == DotColor.Green ? "#4CAF50"
+                : color == DotColor.Amber ? "#FFA726"
+                : color == DotColor.Red ? "#EF5350"
+                : color == DotColor.Blue ? "#42A5F5" : "#616161";
+            dot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        }
+
+        private void DashRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            _ = LoadDashboardAsync();
+        }
+
+        private async void DashQuickClean_Click(object sender, RoutedEventArgs e)
+        {
+            ModeQuick.IsChecked = true;
+            NavCleanup.IsChecked = true;
+            await AnalyzeAsync();
+            await CleanSelectedAsync();
+        }
+
+        private async void DashFullClean_Click(object sender, RoutedEventArgs e)
+        {
+            ModeFull.IsChecked = true;
+            NavCleanup.IsChecked = true;
+            await AnalyzeAsync();
+        }
+
+        private void DashDebloat_Click(object sender, RoutedEventArgs e)
+        {
+            NavDebloat.IsChecked = true;
+        }
+
+        private async void DashSpeedTest_Click(object sender, RoutedEventArgs e)
+        {
+            NavNetwork.IsChecked = true;
+            await RunSpeedTestAsync();
+        }
+
+        // ---------- Tweaks (toggle switches) ----------
 
         private void BuildTweakTab(StackPanel panel, string[] categories)
         {
@@ -159,40 +386,59 @@ namespace SarahsToolkit
                     var group = new GroupBox
                     {
                         Header = cat,
-                        Margin = new Thickness(0, 0, 0, 8),
-                        Padding = new Thickness(8)
+                        Margin = new Thickness(0, 0, 0, 12),
+                        Padding = new Thickness(12, 8, 12, 8)
                     };
                     var stack = new StackPanel();
                     foreach (var tw in tweaks)
                     {
                         TweakState state = _tweaks.GetState(tw);
-                        var cb = new CheckBox
-                        {
-                            Content = tw.Name,
-                            Tag = tw,
-                            Margin = new Thickness(0, 4, 0, 0),
-                            FontWeight = FontWeights.SemiBold
-                        };
-                        cb.ToolTip = tw.Description;
-                        cb.IsChecked = state == TweakState.Applied;
-                        if (state == TweakState.Unknown)
-                        {
-                            cb.IsEnabled = false;
-                            cb.ToolTip = "Could not read current state: " + tw.Description;
-                        }
-                        cb.Checked += TweakBox_Toggled;
-                        cb.Unchecked += TweakBox_Toggled;
-                        stack.Children.Add(cb);
+                        var row = new Grid { Margin = new Thickness(0, 8, 0, 8) };
+                        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-                        var desc = new TextBlock
+                        var left = new StackPanel();
+                        left.Children.Add(new TextBlock
+                        {
+                            Text = tw.Name,
+                            FontWeight = FontWeights.SemiBold,
+                            TextWrapping = TextWrapping.Wrap
+                        });
+                        left.Children.Add(new TextBlock
                         {
                             Text = tw.Description + (tw.RequiresReboot ? " (Restart required.)" : ""),
                             TextWrapping = TextWrapping.Wrap,
-                            Foreground = Brushes.Gray,
-                            Margin = new Thickness(20, 0, 0, 6),
+                            Foreground = (Brush)FindResource("DkMutedBrush"),
+                            Margin = new Thickness(0, 2, 0, 0),
                             FontSize = 12
+                        });
+                        row.Children.Add(left);
+
+                        var toggle = new CheckBox
+                        {
+                            Style = (Style)FindResource("ToggleSwitch"),
+                            Tag = tw,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Margin = new Thickness(16, 0, 0, 0)
                         };
-                        stack.Children.Add(desc);
+                        toggle.IsChecked = state == TweakState.Applied;
+                        if (state == TweakState.Unknown)
+                        {
+                            toggle.IsEnabled = false;
+                            toggle.ToolTip = "Could not read current state: " + tw.Description;
+                        }
+                        toggle.Checked += TweakBox_Toggled;
+                        toggle.Unchecked += TweakBox_Toggled;
+                        Grid.SetColumn(toggle, 1);
+                        row.Children.Add(toggle);
+
+                        stack.Children.Add(row);
+                        if (tw != tweaks[tweaks.Count - 1])
+                            stack.Children.Add(new Separator
+                            {
+                                Background = (Brush)FindResource("DkCardBorderBrush"),
+                                Margin = new Thickness(0, 2, 0, 2)
+                            });
                     }
                     group.Content = stack;
                     panel.Children.Add(group);
@@ -229,7 +475,15 @@ namespace SarahsToolkit
             }
         }
 
-        // ---------- Presets ----------
+        // ---------- Presets (visual cards) ----------
+
+        private static readonly Dictionary<string, string> PresetDotColors =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Balanced", "#4CAF50" },
+                { "Gaming", "#42A5F5" },
+                { "Max Performance", "#FFA726" }
+            };
 
         private void BuildPresetsTab()
         {
@@ -237,56 +491,81 @@ namespace SarahsToolkit
             _presetRatingLabels.Clear();
             foreach (var preset in _presetDefs)
             {
-                var group = new GroupBox
+                string dotHex = PresetDotColors.TryGetValue(preset.Name, out var hex)
+                    ? hex : "#8B5CF6";
+
+                var card = new Border
                 {
-                    Header = preset.Name,
-                    Margin = new Thickness(0, 0, 0, 8),
-                    Padding = new Thickness(8)
+                    Style = (Style)FindResource("Card"),
+                    Margin = new Thickness(0, 0, 12, 12)
                 };
                 var stack = new StackPanel();
+
+                var header = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(0, 0, 0, 8)
+                };
+                header.Children.Add(new Ellipse
+                {
+                    Width = 12, Height = 12,
+                    Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(dotHex)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 10, 0)
+                });
+                header.Children.Add(new TextBlock
+                {
+                    Text = preset.Name,
+                    FontSize = 15,
+                    FontWeight = FontWeights.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextWrapping = TextWrapping.Wrap
+                });
+                stack.Children.Add(header);
+
                 stack.Children.Add(new TextBlock
                 {
                     Text = preset.Description,
                     TextWrapping = TextWrapping.Wrap,
-                    Foreground = Brushes.Gray,
-                    Margin = new Thickness(0, 0, 0, 4),
-                    FontSize = 12
+                    Foreground = (Brush)FindResource("DkMutedBrush"),
+                    Margin = new Thickness(0, 0, 0, 10),
+                    FontSize = 12,
+                    MinHeight = 48
                 });
 
-                var row = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Margin = new Thickness(0, 0, 0, 4)
-                };
                 var ratingLabel = new TextBlock
                 {
                     FontWeight = FontWeights.SemiBold,
-                    VerticalAlignment = VerticalAlignment.Center
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 10),
+                    MinHeight = 36
                 };
-                row.Children.Add(ratingLabel);
-                var applyBtn = new Button
-                {
-                    Content = "Apply preset",
-                    Width = 100,
-                    Margin = new Thickness(12, 0, 0, 0),
-                    Tag = preset
-                };
-                applyBtn.Click += PresetApply_Click;
-                row.Children.Add(applyBtn);
-                stack.Children.Add(row);
+                stack.Children.Add(ratingLabel);
 
                 if (PresetNeedsReboot(preset))
                 {
                     stack.Children.Add(new TextBlock
                     {
                         Text = "Restart Windows afterwards for full effect.",
-                        Foreground = Brushes.Gray,
-                        FontSize = 12
+                        Foreground = (Brush)FindResource("DkMutedBrush"),
+                        FontSize = 12,
+                        Margin = new Thickness(0, 0, 0, 10)
                     });
                 }
 
-                group.Content = stack;
-                PresetsPanel.Children.Add(group);
+                var applyBtn = new Button
+                {
+                    Content = "Apply preset",
+                    Style = (Style)FindResource("AccentButton"),
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    Tag = preset
+                };
+                applyBtn.Click += PresetApply_Click;
+                stack.Children.Add(applyBtn);
+
+                card.Child = stack;
+                PresetsPanel.Children.Add(card);
                 _presetRatingLabels[preset.Id] = ratingLabel;
             }
             RefreshPresetRatings();
@@ -361,27 +640,253 @@ namespace SarahsToolkit
             SetStatus(preset.Name + " preset: " + applied + " setting(s) applied" +
                 (failed > 0 ? ", " + failed + " failed." : ".") +
                 (needsReboot ? " Restart Windows for full effect." : ""));
-            // Re-sync the Optimize/Customize checkboxes and the ratings.
+            // Re-sync the Optimize/Customize toggles and the ratings.
             BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
             BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
             RefreshPresetRatings();
         }
 
-        // ---------- Cleanup ----------
+        // ---------- Cleanup: analyze + determinate clean + summary ----------
 
-        private async void QuickClean_Click(object sender, RoutedEventArgs e)
+        private void CleanMode_Changed(object sender, RoutedEventArgs e)
         {
-            await RunClean(quickOnly: true);
+            if (ModeHint == null) return;
+            bool quick = ModeQuick.IsChecked == true;
+            ModeHint.Text = quick
+                ? "Quick Clean targets the fast, safe temp locations. Full Clean covers every category below."
+                : "Full Clean covers every category below. This takes longer than Quick Clean.";
+            // Mode changed -> any previous analysis no longer applies.
+            _analyses.Clear();
+            CatList.Children.Clear();
+            CatCard.Visibility = Visibility.Collapsed;
+            SummaryCard.Visibility = Visibility.Collapsed;
+            CleanButton.IsEnabled = false;
+            FreedLabel.Text = "";
         }
 
-        private async void FullClean_Click(object sender, RoutedEventArgs e)
+        private async void Analyze_Click(object sender, RoutedEventArgs e)
         {
-            await RunClean(quickOnly: false);
+            await AnalyzeAsync();
+        }
+
+        private async Task AnalyzeAsync()
+        {
+            AnalyzeButton.IsEnabled = false;
+            CatCard.Visibility = Visibility.Collapsed;
+            SummaryCard.Visibility = Visibility.Collapsed;
+            CleanButton.IsEnabled = false;
+            FreedLabel.Text = "";
+            CatList.Children.Clear();
+            _analyses.Clear();
+
+            bool quick = ModeQuick.IsChecked == true;
+            var cats = _cleanup.LoadCategories().Where(c => !quick || c.QuickClean).ToList();
+            SetStatus("Analyzing " + cats.Count + " categories...");
+
+            long totalBytes = 0, totalFiles = 0;
+            var muted = (Brush)FindResource("DkMutedBrush");
+            foreach (var cat in cats)
+            {
+                ScanResult sr;
+                try { sr = await _cleanup.ScanDetailedAsync(cat); }
+                catch { sr = new ScanResult(); }
+
+                var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var cb = new CheckBox { Margin = new Thickness(0, 4, 0, 4), VerticalAlignment = VerticalAlignment.Center };
+                var content = new StackPanel();
+                content.Children.Add(new TextBlock
+                {
+                    Text = cat.Name,
+                    FontWeight = FontWeights.SemiBold,
+                    TextWrapping = TextWrapping.Wrap
+                });
+                content.Children.Add(new TextBlock
+                {
+                    Text = cat.Description,
+                    FontSize = 11,
+                    Foreground = muted,
+                    TextWrapping = TextWrapping.Wrap
+                });
+                cb.Content = content;
+                cb.IsChecked = sr.Bytes > 0;
+                cb.IsEnabled = sr.Bytes > 0;
+                row.Children.Add(cb);
+
+                row.Children.Add(new TextBlock
+                {
+                    Text = FormatBytes(sr.Bytes) + " · " + sr.Files + " files",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = muted,
+                    Margin = new Thickness(16, 0, 0, 0)
+                });
+                Grid.SetColumn(row.Children[1], 1);
+
+                CatList.Children.Add(row);
+                _analyses.Add(new CategoryAnalysis
+                {
+                    Cat = cat,
+                    Bytes = sr.Bytes,
+                    Files = sr.Files,
+                    Box = cb
+                });
+                totalBytes += sr.Bytes;
+                totalFiles += sr.Files;
+            }
+
+            AnalyzeTotal.Text = cats.Count + " categories · " + FormatBytes(totalBytes) +
+                " reclaimable · " + totalFiles + " files";
+            CatCard.Visibility = Visibility.Visible;
+            CleanButton.IsEnabled = _analyses.Any(a => a.Bytes > 0);
+            SetStatus("Analysis complete: " + FormatBytes(totalBytes) + " found.");
+            AnalyzeButton.IsEnabled = true;
+        }
+
+        private async void Clean_Click(object sender, RoutedEventArgs e)
+        {
+            await CleanSelectedAsync();
         }
 
         private void CancelClean_Click(object sender, RoutedEventArgs e)
         {
             if (_cleanCts != null) _cleanCts.Cancel();
+        }
+
+        private async Task CleanSelectedAsync()
+        {
+            var selected = _analyses.Where(a => a.Box.IsChecked == true && a.Bytes > 0).ToList();
+            if (selected.Count == 0)
+            {
+                MessageBox.Show("Tick at least one category with files to clean first. Press Analyze if you haven't yet.",
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string mode = ModeQuick.IsChecked == true ? "Quick Clean" : "Full Clean";
+            var confirm = MessageBox.Show(
+                mode + " will delete temporary and cache files in " + selected.Count +
+                " categor" + (selected.Count == 1 ? "y" : "ies") +
+                " (" + FormatBytes(selected.Sum(a => a.Bytes)) + ").\n\nYour personal files are not touched. Continue?",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            SetCleanUiRunning(true);
+            _cleanCts = new CancellationTokenSource();
+            SummaryCard.Visibility = Visibility.Collapsed;
+            ProgressCard.Visibility = Visibility.Visible;
+            CleanProgress.Value = 0;
+            CleanProgress.IsIndeterminate = false;
+            ProgressPct.Text = "0%";
+            ProgressFile.Text = "";
+            CleanLog.Items.Clear();
+            CleanLog.Items.Add("=== " + mode + " ===");
+            FreedLabel.Text = "";
+
+            long totalFilesPlanned = Math.Max(1, selected.Sum(a => a.Files));
+            long bytesFreed = 0, filesDeleted = 0;
+            string currentCat = null;
+            long catStartBytes = 0, catStartFiles = 0;
+            var perCat = new List<Tuple<string, long, long>>();
+
+            var progress = new Progress<CleanupProgress>(p =>
+            {
+                if (p.Category == "Done")
+                {
+                    bytesFreed = p.BytesFreed;
+                    filesDeleted = p.FilesDeleted;
+                    ProgressStage.Text = "Finishing…";
+                    return;
+                }
+                if (p.Category != currentCat)
+                {
+                    if (currentCat != null)
+                        perCat.Add(Tuple.Create(currentCat, bytesFreed - catStartBytes, filesDeleted - catStartFiles));
+                    currentCat = p.Category;
+                    catStartBytes = bytesFreed;
+                    catStartFiles = filesDeleted;
+                    ProgressStage.Text = "Cleaning " + p.Category + "…";
+                }
+                bytesFreed = p.BytesFreed;
+                filesDeleted = p.FilesDeleted;
+                double pct = Math.Min(100, (double)filesDeleted / totalFilesPlanned * 100);
+                CleanProgress.Value = pct;
+                ProgressPct.Text = ((int)pct) + "%";
+                if (!string.IsNullOrEmpty(p.CurrentFile))
+                {
+                    string shown = CensorUserName(p.CurrentFile);
+                    ProgressFile.Text = shown;
+                    CleanLog.Items.Add(shown);
+                    if (CleanLog.Items.Count > 400) CleanLog.Items.RemoveAt(0);
+                    CleanLog.ScrollIntoView(CleanLog.Items[CleanLog.Items.Count - 1]);
+                }
+                FreedLabel.Text = FormatBytes(bytesFreed) + " freed · " + filesDeleted + " files";
+            });
+
+            try
+            {
+                await _cleanup.CleanAsync(selected.Select(a => a.Cat).ToList(), progress, _cleanCts.Token);
+                if (currentCat != null)
+                    perCat.Add(Tuple.Create(currentCat, bytesFreed - catStartBytes, filesDeleted - catStartFiles));
+
+                CleanProgress.Value = 100;
+                ProgressPct.Text = "100%";
+                ProgressStage.Text = "Done";
+                ProgressFile.Text = "";
+                CleanLog.Items.Add("=== Done: " + FormatBytes(bytesFreed) + " freed ===");
+
+                // Post-clean summary, per category.
+                SummaryList.Children.Clear();
+                var muted = (Brush)FindResource("DkMutedBrush");
+                foreach (var pc in perCat)
+                {
+                    var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    row.Children.Add(new TextBlock { Text = pc.Item1, TextWrapping = TextWrapping.Wrap });
+                    var amt = new TextBlock
+                    {
+                        Text = FormatBytes(pc.Item2) + " · " + pc.Item3 + " files",
+                        Foreground = muted,
+                        Margin = new Thickness(16, 0, 0, 0)
+                    };
+                    Grid.SetColumn(amt, 1);
+                    row.Children.Add(amt);
+                    SummaryList.Children.Add(row);
+                }
+                SummaryTotal.Text = FormatBytes(bytesFreed) + " · " + filesDeleted + " files";
+                SummaryCard.Visibility = Visibility.Visible;
+
+                SetStatus("Clean complete: " + FormatBytes(bytesFreed) + " freed.");
+                MessageBox.Show(mode + " complete.\n" + FormatBytes(bytesFreed) + " freed in " +
+                    filesDeleted + " files.", "Sarah's Toolkit", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                await AnalyzeAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                SetStatus("Clean cancelled.");
+                CleanLog.Items.Add("=== Cancelled ===");
+                ProgressStage.Text = "Cancelled";
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Clean failed.");
+                MessageBox.Show("Clean failed:\n" + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                SetCleanUiRunning(false);
+            }
+        }
+
+        private void SetCleanUiRunning(bool running)
+        {
+            AnalyzeButton.IsEnabled = !running;
+            CleanButton.IsEnabled = !running;
+            CancelCleanButton.IsEnabled = running;
+            if (running) ProgressCard.Visibility = Visibility.Visible;
         }
 
         // ---------- Copy buttons (paste output into Discord) ----------
@@ -408,66 +913,6 @@ namespace SarahsToolkit
             string text = string.Join("\r\n", lines);
             if (!string.IsNullOrEmpty(text))
                 Clipboard.SetText(text);
-        }
-
-        private async Task RunClean(bool quickOnly)
-        {
-            var cats = _cleanup.LoadCategories().Where(c => !quickOnly || c.QuickClean).ToList();
-            string mode = quickOnly ? "Quick Clean" : "Full Clean";
-            var confirm = MessageBox.Show(
-                mode + " will delete temporary and cache files.\n\nYour personal files are not touched. Continue?",
-                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (confirm != MessageBoxResult.Yes) return;
-
-            SetCleanUiRunning(true);
-            _cleanCts = new CancellationTokenSource();
-            CleanLog.Items.Clear();
-            CleanLog.Items.Add("=== " + mode + " ===");
-            FreedLabel.Text = "";
-
-            var progress = new Progress<CleanupProgress>(p =>
-            {
-                StatusText.Text = p.Category == "Done" ? "Finishing..." : "Cleaning: " + p.Category;
-                FreedLabel.Text = FormatBytes(p.BytesFreed) + " freed  ·  " + p.FilesDeleted + " files";
-                if (!string.IsNullOrEmpty(p.CurrentFile))
-                {
-                    CleanLog.Items.Add(p.CurrentFile);
-                    if (CleanLog.Items.Count > 400) CleanLog.Items.RemoveAt(0);
-                    CleanLog.ScrollIntoView(CleanLog.Items[CleanLog.Items.Count - 1]);
-                }
-            });
-
-            try
-            {
-                long bytes = await _cleanup.CleanAsync(cats, progress, _cleanCts.Token);
-                CleanLog.Items.Add("=== Done: " + FormatBytes(bytes) + " freed ===");
-                SetStatus("Clean complete: " + FormatBytes(bytes) + " freed.");
-                MessageBox.Show(mode + " complete.\n" + FormatBytes(bytes) + " freed.",
-                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (OperationCanceledException)
-            {
-                SetStatus("Clean cancelled.");
-                CleanLog.Items.Add("=== Cancelled ===");
-            }
-            catch (Exception ex)
-            {
-                SetStatus("Clean failed.");
-                MessageBox.Show("Clean failed:\n" + ex.Message,
-                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-            finally
-            {
-                SetCleanUiRunning(false);
-            }
-        }
-
-        private void SetCleanUiRunning(bool running)
-        {
-            QuickCleanButton.IsEnabled = !running;
-            FullCleanButton.IsEnabled = !running;
-            CancelCleanButton.IsEnabled = running;
-            CleanProgress.IsIndeterminate = running;
         }
 
         // ---------- Debloat ----------
@@ -505,6 +950,8 @@ namespace SarahsToolkit
                 SetStatus("App check failed: " + ex.Message);
                 return;
             }
+            var muted = (Brush)FindResource("DkMutedBrush");
+            var normal = (Brush)FindResource("DkTextBrush");
             int i = 0;
             foreach (var app in _debloatApps)
             {
@@ -513,7 +960,7 @@ namespace SarahsToolkit
                 cb.IsEnabled = app.Installed;
                 cb.IsChecked = false;
                 cb.Content = app.Name + (app.Installed ? "" : "  (not installed)");
-                cb.Foreground = app.Installed ? Brushes.WhiteSmoke : Brushes.Gray;
+                cb.Foreground = app.Installed ? normal : muted;
             }
             int installed = _debloatApps.Count(a => a.Installed);
             SetStatus(installed + " of " + _debloatApps.Count + " listed apps are installed.");
@@ -573,22 +1020,10 @@ namespace SarahsToolkit
 
         // ---------- Services ----------
 
-        private async void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!_servicesRefreshed && ServicesTab.IsSelected)
-            {
-                _servicesRefreshed = true;
-                await RefreshServiceStatesAsync();
-            }
-            if (PresetsTab != null && PresetsTab.IsSelected)
-            {
-                RefreshPresetRatings();
-            }
-        }
-
         private void BuildServicesList()
         {
             ServicesPanel.Children.Clear();
+            var muted = (Brush)FindResource("DkMutedBrush");
             foreach (var def in _serviceDefs)
             {
                 var cb = new CheckBox
@@ -605,7 +1040,7 @@ namespace SarahsToolkit
                 {
                     Text = def.Description,
                     TextWrapping = TextWrapping.Wrap,
-                    Foreground = Brushes.Gray,
+                    Foreground = muted,
                     Margin = new Thickness(20, 0, 0, 2)
                 };
                 ServicesPanel.Children.Add(desc);
@@ -629,6 +1064,8 @@ namespace SarahsToolkit
                 SetStatus("Service check failed: " + ex.Message);
                 return;
             }
+            var muted = (Brush)FindResource("DkMutedBrush");
+            var normal = (Brush)FindResource("DkTextBrush");
             int i = 0;
             foreach (var def in _serviceDefs)
             {
@@ -640,7 +1077,7 @@ namespace SarahsToolkit
                 desc.Text = def.Description + "  —  Status: " + def.Status +
                             ", Startup: " + def.StartType +
                             (def.Status == "Missing" ? " (not present on this PC)" : "");
-                cb.Foreground = def.StartType == "Disabled" ? Brushes.Gray : Brushes.WhiteSmoke;
+                cb.Foreground = def.StartType == "Disabled" ? muted : normal;
             }
             SetStatus(_serviceDefs.Count + " services checked.");
         }
@@ -745,9 +1182,15 @@ namespace SarahsToolkit
 
         private async void SpeedTest_Click(object sender, RoutedEventArgs e)
         {
-            var btn = (Button)sender;
-            btn.IsEnabled = false;
-            SpeedLabel.Text = "Downloading Speedtest CLI (Ookla)...";
+            await RunSpeedTestAsync();
+        }
+
+        private async Task RunSpeedTestAsync()
+        {
+            SpeedTestButton.IsEnabled = false;
+            SpeedDetails.Text = "Downloading Speedtest CLI (Ookla)…";
+            GaugeValue.Text = "— Mbps";
+            SetGaugeTarget(0);
             try
             {
                 var r = await _tools.SpeedTestCliAsync();
@@ -762,25 +1205,147 @@ namespace SarahsToolkit
                 if (result != null)
                 {
                     var parts = result.Split('|');
-                    SpeedLabel.Text =
+                    double down = 0;
+                    double.TryParse(parts[1], out down);
+                    SetGaugeTarget(down);
+                    GaugeValue.Text = parts[1] + " Mbps";
+                    SpeedDetails.Text =
                         "ISP: " + parts[3] + "\n" +
                         "Ping: " + parts[0] + " ms\n" +
                         "Download: " + parts[1] + " Mbps\n" +
                         "Upload: " + parts[2] + " Mbps\n" +
-                        wifi +
-                        (url != null ? "\nFull results: " + url : "");
+                        (wifi ?? "").TrimEnd('\n');
+                    SpeedUrl.Text = url != null ? "Full results: " + url : "";
                 }
                 else
                 {
-                    SpeedLabel.Text = "Speed test failed" + (error != null ? ": " + error + "." : ".") +
+                    SpeedDetails.Text = "Speed test failed" + (error != null ? ": " + error + "." : ".") +
                         " Check your connection or try speedtest.net in your browser.";
+                    SpeedUrl.Text = "";
                 }
             }
             catch (Exception ex)
             {
-                SpeedLabel.Text = "Speed test failed: " + ex.Message;
+                SpeedDetails.Text = "Speed test failed: " + ex.Message;
+                SpeedUrl.Text = "";
             }
-            btn.IsEnabled = true;
+            SpeedTestButton.IsEnabled = true;
+        }
+
+        // ---------- Speed-test gauge ----------
+
+        private void SetGaugeTarget(double mbps)
+        {
+            _gaugeTarget = Math.Max(0, mbps);
+            if (_gaugeTimer == null)
+            {
+                _gaugeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
+                _gaugeTimer.Tick += (s, e) =>
+                {
+                    _gaugeCurrent += (_gaugeTarget - _gaugeCurrent) * 0.18;
+                    if (Math.Abs(_gaugeTarget - _gaugeCurrent) < 0.5)
+                    {
+                        _gaugeCurrent = _gaugeTarget;
+                        _gaugeTimer.Stop();
+                    }
+                    DrawGauge(_gaugeCurrent);
+                };
+            }
+            _gaugeTimer.Start();
+        }
+
+        private static Point GaugePoint(double cx, double cy, double r, double deg)
+        {
+            double rad = deg * Math.PI / 180;
+            return new Point(cx + r * Math.Cos(rad), cy - r * Math.Sin(rad));
+        }
+
+        private static PathGeometry GaugeArc(double cx, double cy, double r, double startDeg, double endDeg)
+        {
+            var seg = new ArcSegment(
+                GaugePoint(cx, cy, r, endDeg),
+                new Size(r, r), 0, false, SweepDirection.Clockwise, true);
+            var fig = new PathFigure(GaugePoint(cx, cy, r, startDeg),
+                new PathSegmentCollection { seg }, false);
+            return new PathGeometry(new PathFigureCollection { fig });
+        }
+
+        private void DrawGauge(double value)
+        {
+            GaugeCanvas.Children.Clear();
+            double cx = 160, cy = 170, r = 128;
+            var track = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x38));
+            var accent = (Brush)FindResource("DkAccentHoverBrush");
+            var muted = (Brush)FindResource("DkMutedBrush");
+
+            var bg = new System.Windows.Shapes.Path
+            {
+                Stroke = track,
+                StrokeThickness = 14,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                Data = GaugeArc(cx, cy, r, 180, 0)
+            };
+            GaugeCanvas.Children.Add(bg);
+
+            if (value > 0.5)
+            {
+                double endDeg = 180 - 180 * Math.Min(value, GaugeMaxMbps) / GaugeMaxMbps;
+                var fg = new System.Windows.Shapes.Path
+                {
+                    Stroke = accent,
+                    StrokeThickness = 14,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    Data = GaugeArc(cx, cy, r, 180, endDeg)
+                };
+                GaugeCanvas.Children.Add(fg);
+            }
+
+            // Ticks every 100 Mbps, labels every 250.
+            for (int v = 0; v <= 1000; v += 100)
+            {
+                double deg = 180 - 180.0 * v / 1000;
+                Point p1 = GaugePoint(cx, cy, r - 14, deg);
+                Point p2 = GaugePoint(cx, cy, r - 22, deg);
+                GaugeCanvas.Children.Add(new Line
+                {
+                    X1 = p1.X, Y1 = p1.Y, X2 = p2.X, Y2 = p2.Y,
+                    Stroke = muted, StrokeThickness = v % 250 == 0 ? 2.5 : 1.2
+                });
+                if (v % 250 == 0)
+                {
+                    Point lp = GaugePoint(cx, cy, r - 36, deg);
+                    var label = new TextBlock
+                    {
+                        Text = v.ToString(),
+                        FontSize = 10,
+                        Foreground = muted
+                    };
+                    Canvas.SetLeft(label, lp.X - 12);
+                    Canvas.SetTop(label, lp.Y - 8);
+                    GaugeCanvas.Children.Add(label);
+                }
+            }
+
+            // Needle (accent colored - only text may be white).
+            double needleDeg = 180 - 180 * Math.Min(value, GaugeMaxMbps) / GaugeMaxMbps;
+            Point tip = GaugePoint(cx, cy, r - 28, needleDeg);
+            GaugeCanvas.Children.Add(new Line
+            {
+                X1 = cx, Y1 = cy, X2 = tip.X, Y2 = tip.Y,
+                Stroke = accent, StrokeThickness = 3,
+                StrokeStartLineCap = PenLineCap.Round
+            });
+            GaugeCanvas.Children.Add(new Ellipse
+            {
+                Width = 14, Height = 14,
+                Fill = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x26)),
+                Stroke = accent, StrokeThickness = 2
+            });
+            var hub = (Ellipse)GaugeCanvas.Children[GaugeCanvas.Children.Count - 1];
+            Canvas.SetLeft(hub, cx - 7);
+            Canvas.SetTop(hub, cy - 7);
         }
 
         private async void ReTrim_Click(object sender, RoutedEventArgs e)
@@ -812,7 +1377,8 @@ namespace SarahsToolkit
 
         private void ToolsLog(string text)
         {
-            ToolsOutput.AppendText(DateTime.Now.ToString("HH:mm:ss") + "  " + text + "\r\n");
+            ToolsOutput.AppendText(DateTime.Now.ToString("HH:mm:ss") + "  " +
+                CensorUserName(text) + "\r\n");
             ToolsOutput.ScrollToEnd();
         }
 
@@ -1032,15 +1598,18 @@ namespace SarahsToolkit
         {
             SetStatus("Checking for updates...");
             UpdateLabel.Text = "Checking...";
+            UpdateDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFA726"));
             UpdateInfo info = await _updates.CheckForUpdatesAsync();
             if (info.Available)
             {
                 UpdateLabel.Text = "Update available: v" + info.Version;
+                UpdateDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6"));
                 await PromptAndInstallUpdateAsync(info);
             }
             else
             {
                 UpdateLabel.Text = info.Message;
+                UpdateDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4CAF50"));
             }
             SetStatus("Ready.");
         }
@@ -1051,7 +1620,11 @@ namespace SarahsToolkit
             {
                 UpdateInfo info = await _updates.CheckForUpdatesAsync();
                 if (info.Available)
+                {
+                    UpdateLabel.Text = "Update available: v" + info.Version;
+                    UpdateDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6"));
                     await PromptAndInstallUpdateAsync(info);
+                }
             }
             catch
             {
@@ -1073,7 +1646,7 @@ namespace SarahsToolkit
             SetStatus("Downloading update...");
             try
             {
-                string tmp = Path.Combine(Path.GetTempPath(), "SarahsToolkitSetup_update.exe");
+                string tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "SarahsToolkitSetup_update.exe");
                 using (var client = new HttpClient())
                 {
                     client.DefaultRequestHeaders.UserAgent.ParseAdd("SarahsToolkit");
@@ -1283,6 +1856,37 @@ namespace SarahsToolkit
         private void SetStatus(string text)
         {
             StatusText.Text = text;
+        }
+
+        /// <summary>
+        /// Replaces the current Windows user name in a path with *** so logs
+        /// never leak it, e.g. C:\Users\conpl\AppData\... becomes
+        /// C:\Users\***\AppData\...
+        /// </summary>
+        private static string CensorUserName(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            try
+            {
+                string profile = Environment.GetFolderPath(
+                    Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrEmpty(profile))
+                {
+                    string parent = System.IO.Path.GetDirectoryName(profile.TrimEnd(
+                        System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+                    if (!string.IsNullOrEmpty(parent))
+                    {
+                        return Regex.Replace(text, Regex.Escape(profile),
+                            parent + System.IO.Path.DirectorySeparatorChar + "***",
+                            RegexOptions.IgnoreCase);
+                    }
+                }
+            }
+            catch
+            {
+                // Cosmetic only; never break output over it.
+            }
+            return text;
         }
 
         private static string FormatBytes(long bytes)

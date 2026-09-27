@@ -4,20 +4,34 @@
              StartupUri="MainWindow.xaml">
     <Application.Resources>
 
-        <!-- ================= Sarah's Toolkit dark palette ================= -->
-        <Color x:Key="DkBg">#1E1E1E</Color>
-        <Color x:Key="DkPanel">#252526</Color>
-        <Color x:Key="DkControl">#2D2D30</Color>
-        <Color x:Key="DkControlHover">#3E3E42</Color>
+        <!-- ================= Sarah's Toolkit palette: VRCX-dark + purple ================= -->
+        <Color x:Key="DkBg">#1B1B1E</Color>
+        <Color x:Key="DkRail">#141416</Color>
+        <Color x:Key="DkPanel">#252529</Color>
+        <Color x:Key="DkCard">#232327</Color>
+        <Color x:Key="DkCardBorder">#34343C</Color>
+        <Color x:Key="DkControl">#2D2D33</Color>
+        <Color x:Key="DkControlHover">#3A3A42</Color>
         <Color x:Key="DkBorder">#3F3F46</Color>
-        <Color x:Key="DkText">#E8E8E8</Color>
-        <Color x:Key="DkMuted">#9D9D9D</Color>
-        <Color x:Key="DkAccent">#007ACC</Color>
-        <Color x:Key="DkAccentHover">#1C97EA</Color>
-        <Color x:Key="DkSelection">#264F78</Color>
+        <Color x:Key="DkText">#EDEDF2</Color>
+        <Color x:Key="DkMuted">#9A9AA3</Color>
+        <Color x:Key="DkAccent">#8B5CF6</Color>
+        <Color x:Key="DkAccentHover">#A78BFA</Color>
+        <Color x:Key="DkAccentDeep">#6D28D9</Color>
+        <Color x:Key="DkSelection">#2E2A52</Color>
+
+        <!-- VRCX-style presence dots -->
+        <Color x:Key="DotGreen">#4CAF50</Color>
+        <Color x:Key="DotBlue">#42A5F5</Color>
+        <Color x:Key="DotAmber">#FFA726</Color>
+        <Color x:Key="DotRed">#EF5350</Color>
+        <Color x:Key="DotGray">#757575</Color>
 
         <SolidColorBrush x:Key="DkBgBrush" Color="{StaticResource DkBg}"/>
+        <SolidColorBrush x:Key="DkRailBrush" Color="{StaticResource DkRail}"/>
         <SolidColorBrush x:Key="DkPanelBrush" Color="{StaticResource DkPanel}"/>
+        <SolidColorBrush x:Key="DkCardBrush" Color="{StaticResource DkCard}"/>
+        <SolidColorBrush x:Key="DkCardBorderBrush" Color="{StaticResource DkCardBorder}"/>
         <SolidColorBrush x:Key="DkControlBrush" Color="{StaticResource DkControl}"/>
         <SolidColorBrush x:Key="DkControlHoverBrush" Color="{StaticResource DkControlHover}"/>
         <SolidColorBrush x:Key="DkBorderBrush" Color="{StaticResource DkBorder}"/>
@@ -25,17 +39,42 @@
         <SolidColorBrush x:Key="DkMutedBrush" Color="{StaticResource DkMuted}"/>
         <SolidColorBrush x:Key="DkAccentBrush" Color="{StaticResource DkAccent}"/>
         <SolidColorBrush x:Key="DkAccentHoverBrush" Color="{StaticResource DkAccentHover}"/>
+        <SolidColorBrush x:Key="DkAccentDeepBrush" Color="{StaticResource DkAccentDeep}"/>
         <SolidColorBrush x:Key="DkSelectionBrush" Color="{StaticResource DkSelection}"/>
 
         <!-- Window -->
         <Style TargetType="Window">
             <Setter Property="Background" Value="{StaticResource DkBgBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
         </Style>
 
         <!-- Text -->
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+        </Style>
+
+        <!-- Section headers -->
+        <Style x:Key="H2" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <Style x:Key="Muted12" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource DkMutedBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- VRCX-style card -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource DkCardBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkCardBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
 
         <!-- Buttons -->
@@ -44,7 +83,8 @@
             <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -52,7 +92,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3"
+                                CornerRadius="6"
                                 Padding="{TemplateBinding Padding}"
                                 SnapsToDevicePixels="True">
                             <ContentPresenter HorizontalAlignment="Center"
@@ -79,65 +119,86 @@
             </Setter>
         </Style>
 
-        <!-- Tabs -->
-        <Style TargetType="TabControl">
-            <Setter Property="Background" Value="{StaticResource DkBgBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+        <!-- Accent (primary action) button -->
+        <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource DkAccentBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkAccentBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!-- Sidebar rail nav (RadioButton, icon over label, VRCX-style) -->
+        <Style x:Key="NavRailButton" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource DkMutedBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Height" Value="62"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="GroupName" Value="Nav"/>
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="TabControl">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <TabPanel Grid.Row="0" Panel.ZIndex="1" Margin="0,0,4,-1"
-                                      IsItemsHost="True" Background="Transparent"/>
-                            <Border Grid.Row="1"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="1" CornerRadius="0,3,3,3" Padding="4">
-                                <ContentPresenter ContentSource="SelectedContent"/>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Grid Background="Transparent">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="3"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Rectangle x:Name="indicator" Fill="{StaticResource DkAccentBrush}"
+                                       Visibility="Collapsed" RadiusX="1.5" RadiusY="1.5"
+                                       Margin="0,10,0,10"/>
+                            <Border Grid.Column="1" x:Name="bg" Background="Transparent"
+                                    CornerRadius="8" Margin="5,3,5,3">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock x:Name="icon" Text="{TemplateBinding Tag}"
+                                               FontFamily="Segoe MDL2 Assets" FontSize="20"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{TemplateBinding Foreground}"/>
+                                    <TextBlock Text="{TemplateBinding Content}" FontSize="10"
+                                               HorizontalAlignment="Center" Margin="0,3,0,0"
+                                               Foreground="{TemplateBinding Foreground}"/>
+                                </StackPanel>
                             </Border>
                         </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="indicator" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="bg" Property="Background" Value="#26262E"/>
+                                <Setter TargetName="icon" Property="Foreground"
+                                        Value="{StaticResource DkAccentHoverBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#1E1E24"/>
+                                <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <Style TargetType="TabItem">
-            <Setter Property="Background" Value="{StaticResource DkPanelBrush}"/>
+        <!-- Segmented pills (Quick / Full mode) -->
+        <Style x:Key="SegmentRadio" TargetType="RadioButton">
             <Setter Property="Foreground" Value="{StaticResource DkMutedBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
-            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="Background" Value="{StaticResource DkControlBrush}"/>
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="GroupName" Value="CleanMode"/>
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <StackPanel Margin="2,0,2,0">
-                            <Border x:Name="bd"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="1,1,1,0"
-                                    CornerRadius="4,4,0,0"
-                                    Padding="{TemplateBinding Padding}"
-                                    SnapsToDevicePixels="True">
-                                <ContentPresenter ContentSource="Header"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
-                            </Border>
-                            <Rectangle x:Name="accent" Height="2"
-                                       Fill="{StaticResource DkAccentBrush}"
-                                       Visibility="Collapsed"/>
-                        </StackPanel>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource DkBorderBrush}" BorderThickness="1"
+                                CornerRadius="14" Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
+                            <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="bd" Property="Background"
-                                        Value="{StaticResource DkBgBrush}"/>
-                                <Setter TargetName="accent" Property="Visibility"
-                                        Value="Visible"/>
-                                <Setter Property="Foreground"
-                                        Value="{StaticResource DkTextBrush}"/>
+                                        Value="{StaticResource DkAccentBrush}"/>
+                                <Setter TargetName="bd" Property="BorderBrush"
+                                        Value="{StaticResource DkAccentBrush}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="bd" Property="Background"
@@ -149,20 +210,64 @@
             </Setter>
         </Style>
 
-        <!-- Check boxes -->
+        <!-- Toggle switch (Optimize / Customize tweaks) -->
+        <Style x:Key="ToggleSwitch" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="42" Height="23">
+                                <Border x:Name="track" CornerRadius="11.5"
+                                        Background="#3A3A41"
+                                        BorderBrush="#4C4C56" BorderThickness="1"
+                                        SnapsToDevicePixels="True"/>
+                                <Ellipse x:Name="thumb" Width="15" Height="15"
+                                         Fill="#8E8E99"
+                                         HorizontalAlignment="Left" VerticalAlignment="Center"
+                                         Margin="4,0,0,0"/>
+                            </Grid>
+                            <ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="track" Property="Background"
+                                        Value="{StaticResource DkAccentBrush}"/>
+                                <Setter TargetName="track" Property="BorderBrush"
+                                        Value="{StaticResource DkAccentBrush}"/>
+                                <Setter TargetName="thumb" Property="Fill" Value="#C4B5FD"/>
+                                <Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="thumb" Property="Margin" Value="0,0,4,0"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="track" Property="BorderBrush"
+                                        Value="{StaticResource DkAccentHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource DkMutedBrush}"/>
+                                <Setter TargetName="track" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Check boxes (selection lists: debloat, services) -->
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Border x:Name="box" Width="15" Height="15" CornerRadius="2"
+                            <Border x:Name="box" Width="15" Height="15" CornerRadius="3"
                                     Background="{StaticResource DkControlBrush}"
                                     BorderBrush="{StaticResource DkBorderBrush}"
                                     BorderThickness="1"
                                     SnapsToDevicePixels="True">
                                 <Path x:Name="check" Data="M 2,7 L 6,11 L 12,2"
-                                      Stroke="{StaticResource DkTextBrush}"
+                                      Stroke="#C4B5FD"
                                       StrokeThickness="2" Stretch="Uniform" Margin="2"
                                       Visibility="Collapsed"/>
                             </Border>
@@ -206,10 +311,10 @@
                                               Margin="8,0,0,0"/>
                             <Border Grid.Row="1"
                                     BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="1" CornerRadius="4"
+                                    BorderThickness="1" CornerRadius="8"
                                     Padding="{TemplateBinding Padding}"
                                     Margin="0,4,0,0"
-                                    Background="Transparent">
+                                    Background="{StaticResource DkCardBrush}">
                                 <ContentPresenter/>
                             </Border>
                         </Grid>
@@ -251,23 +356,23 @@
             </Setter>
         </Style>
 
-        <!-- Progress bar -->
-        <Style TargetType="ProgressBar">
-            <Setter Property="Background" Value="{StaticResource DkPanelBrush}"/>
+        <!-- Rounded progress bar -->
+        <Style x:Key="RoundProgress" TargetType="ProgressBar">
+            <Setter Property="Background" Value="#26262C"/>
             <Setter Property="Foreground" Value="{StaticResource DkAccentBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DkCardBorderBrush}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ProgressBar">
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="1" CornerRadius="2"
+                                BorderThickness="1" CornerRadius="7"
                                 SnapsToDevicePixels="True">
-                            <Grid x:Name="PART_Track">
+                            <Grid x:Name="PART_Track" Margin="3">
                                 <Rectangle x:Name="PART_Indicator"
                                            Fill="{TemplateBinding Foreground}"
                                            HorizontalAlignment="Left"
-                                           RadiusX="2" RadiusY="2"/>
+                                           RadiusX="4" RadiusY="4"/>
                             </Grid>
                         </Border>
                     </ControlTemplate>
@@ -281,12 +386,12 @@
             <Setter Property="Foreground" Value="{StaticResource DkTextBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource DkBorderBrush}"/>
             <Setter Property="CaretBrush" Value="{StaticResource DkTextBrush}"/>
-            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Padding" Value="6,4"/>
         </Style>
 
         <!-- Status bar -->
         <Style TargetType="StatusBar">
-            <Setter Property="Background" Value="{StaticResource DkPanelBrush}"/>
+            <Setter Property="Background" Value="{StaticResource DkRailBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource DkMutedBrush}"/>
         </Style>
 

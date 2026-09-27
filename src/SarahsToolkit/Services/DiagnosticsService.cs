@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -319,6 +320,58 @@ namespace SarahsToolkit.Services
             sb.Append("if ($evts) { $evts | Format-Table -AutoSize | Out-String -Width 220 | Write-Output } ");
             sb.Append("else { Write-Output 'No recent error events found.' }; ");
             return Task.Run(() => PowerShellRunner.RunScript(sb.ToString(), 3));
+        }
+
+        /// <summary>
+        /// One-shot system snapshot for the dashboard: CPU, GPU, RAM, disk C:,
+        /// uptime, Windows build and pending-reboot state. Single script, parsed
+        /// into a DashboardSnapshot.
+        /// </summary>
+        public Task<DashboardSnapshot> GetDashboardSnapshotAsync()
+        {
+            return Task.Run(() =>
+            {
+                var snap = new DashboardSnapshot();
+                var sb = new StringBuilder();
+                sb.Append("$cpu = (Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name; ");
+                sb.Append("$gpu = (Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Virtual|Basic Display|Remote' } | Select-Object -First 1).Name; ");
+                sb.Append("$os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue; ");
+                sb.Append("$c = Get-PSDrive C -ErrorAction SilentlyContinue; ");
+                sb.Append("$up = (Get-Date) - $os.LastBootUpTime; ");
+                sb.Append("Write-Output ('CPU=' + $cpu); ");
+                sb.Append("Write-Output ('GPU=' + $gpu); ");
+                sb.Append("Write-Output ('RAMTOTAL=' + [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)); ");
+                sb.Append("Write-Output ('RAMFREE=' + [math]::Round($os.FreePhysicalMemory / 1MB, 1)); ");
+                sb.Append("Write-Output ('DISKTOTAL=' + [math]::Round(($c.Used + $c.Free) / 1GB, 1)); ");
+                sb.Append("Write-Output ('DISKFREE=' + [math]::Round($c.Free / 1GB, 1)); ");
+                sb.Append("Write-Output ('UPTIME=' + $up.Days + 'd ' + $up.Hours + 'h ' + $up.Minutes + 'm'); ");
+                sb.Append("Write-Output ('BUILD=' + $os.BuildNumber); ");
+                sb.Append("$rb = (Test-Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending') -or ");
+                sb.Append("(Test-Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WindowsUpdate\\Auto Update\\RebootRequired') -or ");
+                sb.Append("$null -ne (Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue); ");
+                sb.Append("Write-Output ('REBOOT=' + $(if ($rb) { 'YES' } else { 'NO' })); ");
+                PowerShellResult r = PowerShellRunner.RunScript(sb.ToString(), 2);
+                foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string t = line.Trim();
+                    int eq = t.IndexOf('=');
+                    if (eq <= 0) continue;
+                    string key = t.Substring(0, eq), val = t.Substring(eq + 1);
+                    switch (key)
+                    {
+                        case "CPU": if (!string.IsNullOrWhiteSpace(val)) snap.Cpu = val; break;
+                        case "GPU": if (!string.IsNullOrWhiteSpace(val)) snap.Gpu = val; break;
+                        case "RAMTOTAL": double.TryParse(val, out double rt); snap.RamTotalGb = rt; break;
+                        case "RAMFREE": double.TryParse(val, out double rf); snap.RamFreeGb = rf; break;
+                        case "DISKTOTAL": double.TryParse(val, out double dt); snap.DiskTotalGb = dt; break;
+                        case "DISKFREE": double.TryParse(val, out double df); snap.DiskFreeGb = df; break;
+                        case "UPTIME": snap.Uptime = val; break;
+                        case "BUILD": snap.WindowsBuild = val; break;
+                        case "REBOOT": snap.PendingReboot = val == "YES"; break;
+                    }
+                }
+                return snap;
+            });
         }
     }
 }
