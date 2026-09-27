@@ -1119,7 +1119,7 @@ namespace SarahsToolkit
             {
                 DebloatPanel.Children.Add(new TextBlock
                 {
-                    Text = "None of the listed bloatware apps are installed. Nothing to remove.",
+                    Text = "All good — none of the listed bloatware apps are installed on this PC.",
                     Foreground = (Brush)FindResource("DkMutedBrush"),
                     TextWrapping = TextWrapping.Wrap
                 });
