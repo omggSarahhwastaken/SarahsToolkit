@@ -861,6 +861,19 @@ static void DoInstall(const char *selfPath) {
 
     /* ---- Step 4: install ---------------------------------------- */
     printf("[4/4] Installing to %s...\n", installDir);
+    /* Clean-install semantics: remove the old install dir first so an
+     * update can never leave stale files behind. Never wipe the folder
+     * we are currently running from. */
+    {
+        char selfDir[MAX_PATH];
+        DirNameOf(selfPath, selfDir, sizeof(selfDir));
+        if (!StrCaseEq(selfDir, installDir)) {
+            _snprintf(cmd, sizeof(cmd),
+                      "cmd.exe /c rmdir /s /q \"%s\"", installDir);
+            cmd[sizeof(cmd) - 1] = 0;
+            RunHidden(cmd, 60000, NULL);
+        }
+    }
     CreateDirectoryA(installDir, NULL);
     _snprintf(cmd, sizeof(cmd),
               "robocopy \"%s\" \"%s\" /E /NFL /NDL /NJH /NJS /NC /NS /R:2 /W:2",
