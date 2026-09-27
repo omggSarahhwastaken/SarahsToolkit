@@ -929,6 +929,18 @@ static void DoInstall(const char *selfPath) {
 int main(int argc, char **argv) {
     char selfPath[MAX_PATH];
     GetModuleFileNameA(NULL, selfPath, sizeof(selfPath));
+    /* Update mode: the app's updater saves the installer as
+     * SarahsToolkitSetup_update.exe. In that case, launch the app when
+     * done and close this window automatically (no "press any key"). */
+    {
+        char lower[MAX_PATH];
+        strncpy(lower, selfPath, sizeof(lower) - 1);
+        lower[sizeof(lower) - 1] = 0;
+        for (char *p = lower; *p; p++)
+            if (*p >= 'A' && *p <= 'Z') *p += 32;
+        if (strstr(lower, "_update") != NULL)
+            g_noPause = 1;
+    }
     if (argc > 1 && (strcmp(argv[1], "/uninstall") == 0 ||
                      strcmp(argv[1], "-uninstall") == 0)) {
         DoUninstall(selfPath);
