@@ -194,6 +194,7 @@ namespace SarahsToolkit
             PagePresets.Visibility = Visibility.Collapsed;
             PageCustomize.Visibility = Visibility.Collapsed;
             PageNetwork.Visibility = Visibility.Collapsed;
+            PageSecurity.Visibility = Visibility.Collapsed;
             PageTools.Visibility = Visibility.Collapsed;
             PageDev.Visibility = Visibility.Collapsed;
             PageAbout.Visibility = Visibility.Collapsed;
@@ -251,12 +252,17 @@ namespace SarahsToolkit
                     PageTitle.Text = "Network";
                     PageSubtitle.Text = "DNS, speed test and rescue";
                     break;
+                case "NavSecurity":
+                    PageSecurity.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Security";
+                    PageSubtitle.Text = "Defender exclusions";
+                    RefreshDefenderPanel();
+                    break;
                 case "NavTools":
                     PageTools.Visibility = Visibility.Visible;
                     PageTitle.Text = "Tools";
                     PageSubtitle.Text = "Diagnostics and system utilities";
                     RefreshMemoryLabel();
-                    RefreshDefenderPanel();
                     break;
                 case "NavDev":
                     PageDev.Visibility = Visibility.Visible;

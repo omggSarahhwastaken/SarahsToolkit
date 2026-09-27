@@ -48,6 +48,8 @@
                                      Content="Customize" Tag="&#xE70F;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavNetwork" Style="{StaticResource NavRailButton}"
                                      Content="Network" Tag="&#xE774;" Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavSecurity" Style="{StaticResource NavRailButton}"
+                                     Content="Security" Tag="&#xE83D;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavTools" Style="{StaticResource NavRailButton}"
                                      Content="Tools" Tag="&#xE90F;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavDev" Style="{StaticResource NavRailButton}"
@@ -447,6 +449,40 @@
                     </ScrollViewer>
                 </Grid>
 
+                <!-- ======== Security ======== -->
+                <Grid x:Name="PageSecurity" Visibility="Collapsed">
+                    <ScrollViewer Margin="20">
+                        <StackPanel>
+                <GroupBox Header="Defender exclusions" Margin="0,0,0,10" Padding="10">
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource Muted12}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                                               Text="Excluding trusted app folders stops Defender's real-time scanning from re-scanning known-safe files on every launch — the main reason Antimalware Service Executable sits heavy on RAM. Only exclude software you trust."/>
+                                                    <TextBlock Text="Detected apps (known safe):" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                    <StackPanel x:Name="DefenderAppsPanel" Margin="0,0,0,4"/>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                        <Button Content="Exclude selected" Width="120" Margin="0,0,8,0"
+                                                                Click="DefenderExcludeSelected_Click"/>
+                                                        <Button Content="Refresh" Width="80" Click="DefenderRefresh_Click"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="Current exclusions:" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                    <ListBox x:Name="DefenderExclusionsList" Height="90" Margin="0,0,0,4"/>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                        <Button Content="Remove selected" Width="120"
+                                                                Click="DefenderRemoveSelected_Click"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBox x:Name="DefenderCustomPath" Width="330" Margin="0,0,8,0"
+                                                                 VerticalAlignment="Center"/>
+                                                        <Button Content="Add folder" Width="90" Click="DefenderAddCustom_Click"/>
+                                                    </StackPanel>
+                                                    <TextBlock x:Name="DefenderStatusLabel" Style="{StaticResource Muted12}"
+                                                               Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </GroupBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
                 <!-- ======== Tools ======== -->
                 <Grid x:Name="PageTools" Visibility="Collapsed">
                     <DockPanel Margin="20">
@@ -490,32 +526,6 @@
                                     <TextBlock x:Name="MemoryResultLabel" Style="{StaticResource Muted12}"
                                                TextWrapping="Wrap"
                                                Text="Drops Windows' standby file cache — the leftovers it keeps 'just in case'. Your apps keep their memory; only cached file data is freed, the same stuff Windows discards on its own when RAM is actually needed."/>
-                                </StackPanel>
-                            </GroupBox>
-                            <GroupBox Header="Defender exclusions" Margin="0,0,0,10" Padding="10">
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource Muted12}" TextWrapping="Wrap" Margin="0,0,0,8"
-                                               Text="Excluding trusted app folders stops Defender's real-time scanning from re-scanning known-safe files on every launch — the main reason Antimalware Service Executable sits heavy on RAM. Only exclude software you trust."/>
-                                    <TextBlock Text="Detected apps (known safe):" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                                    <StackPanel x:Name="DefenderAppsPanel" Margin="0,0,0,4"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                        <Button Content="Exclude selected" Width="120" Margin="0,0,8,0"
-                                                Click="DefenderExcludeSelected_Click"/>
-                                        <Button Content="Refresh" Width="80" Click="DefenderRefresh_Click"/>
-                                    </StackPanel>
-                                    <TextBlock Text="Current exclusions:" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                                    <ListBox x:Name="DefenderExclusionsList" Height="90" Margin="0,0,0,4"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <Button Content="Remove selected" Width="120"
-                                                Click="DefenderRemoveSelected_Click"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBox x:Name="DefenderCustomPath" Width="330" Margin="0,0,8,0"
-                                                 VerticalAlignment="Center"/>
-                                        <Button Content="Add folder" Width="90" Click="DefenderAddCustom_Click"/>
-                                    </StackPanel>
-                                    <TextBlock x:Name="DefenderStatusLabel" Style="{StaticResource Muted12}"
-                                               Margin="0,6,0,0" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </GroupBox>
                             <GroupBox Header="Windows" Margin="0,0,0,10" Padding="10">
