@@ -464,9 +464,12 @@ static int VerifyMicrosoftSignature(const char *path) {
                                    NULL, subjDN, sizeof(subjDN));
                 CertGetNameStringA(cc, CERT_NAME_DN_TYPE, CERT_NAME_ISSUER_FLAG,
                                    NULL, issuerDN, sizeof(issuerDN));
-                ok = (strstr(subjDN, "Microsoft Corporation") != NULL) ||
-                     (strstr(subjDN, "Microsoft") != NULL &&
-                      strstr(issuerDN, "Microsoft") != NULL);
+                /* Microsoft signs the .NET SDK with a cert whose subject is
+                 * just ".NET"; the meaningful check is that it was issued
+                 * by Microsoft's own code signing CA (which never issues
+                 * to third parties). */
+                ok = (strstr(issuerDN, "Microsoft Code Signing") != NULL) ||
+                     (strstr(subjDN, "Microsoft") != NULL);
                 CertFreeCertificateContext(cc);
             }
         }
