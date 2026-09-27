@@ -72,7 +72,7 @@ namespace SarahsToolkit.Services
             sb.Append("$down = [Math]::Round($res.download.bandwidth * 8 / 1e6, 1); ");
             sb.Append("$up = [Math]::Round($res.upload.bandwidth * 8 / 1e6, 1); ");
             sb.Append("$ping = [Math]::Round($res.ping.latency, 1); ");
-            sb.Append("Write-Output ('RESULT|' + $ping + '|' + $down + '|' + $up + '|' + $res.server.name + ' (' + $res.server.location + ')|' + $res.isp); ");
+            sb.Append("Write-Output ('RESULT|' + $ping + '|' + $down + '|' + $up + '|' + $res.isp); ");
             sb.Append("if ($res.result.url) { Write-Output ('URL|' + $res.result.url) } ");
             sb.Append("} catch { Write-Output ('ERROR|' + $_.Exception.Message) } ");
             sb.Append("finally { if (Test-Path $workDir) { Remove-Item $workDir -Recurse -Force -ErrorAction SilentlyContinue } }; ");
