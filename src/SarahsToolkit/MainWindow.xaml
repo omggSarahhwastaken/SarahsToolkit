@@ -187,6 +187,29 @@
                                         </StackPanel>
                                     </Grid>
                                 </Border>
+                                <Border Style="{StaticResource Card}" Margin="0,0,0,0">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse x:Name="VitalRamDot" Width="8" Height="8" Fill="#4CAF50"
+                                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="MEMORY" FontSize="11"
+                                                           Foreground="{StaticResource DkMutedBrush}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="VitalRamVal" Grid.Column="1" Text="…"
+                                                       FontSize="14" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <TextBlock x:Name="VitalRamPct" Text="" FontSize="10"
+                                                   Foreground="{StaticResource DkMutedBrush}"
+                                                   HorizontalAlignment="Right" Margin="0,0,0,2"/>
+                                        <stk:Sparkline x:Name="VitalRamGraph" Height="44" LineColor="#4CAF50"/>
+                                    </StackPanel>
+                                </Border>
                             </UniformGrid>
 
                             <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
@@ -236,29 +259,6 @@
                                                        HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </Grid>
                                         <stk:Sparkline x:Name="VitalGpuGraph" Height="44" LineColor="#22D3EE"/>
-                                    </StackPanel>
-                                </Border>
-                                <Border Style="{StaticResource Card}" Margin="0,0,0,12">
-                                    <StackPanel>
-                                        <Grid Margin="0,0,0,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Ellipse x:Name="VitalRamDot" Width="8" Height="8" Fill="#4CAF50"
-                                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <TextBlock Text="MEMORY" FontSize="11"
-                                                           Foreground="{StaticResource DkMutedBrush}"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                            <TextBlock x:Name="VitalRamVal" Grid.Column="1" Text="…"
-                                                       FontSize="14" FontWeight="SemiBold"
-                                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                        </Grid>
-                                        <TextBlock x:Name="VitalRamPct" Text="" FontSize="10"
-                                                   Foreground="{StaticResource DkMutedBrush}"
-                                                   HorizontalAlignment="Right" Margin="0,0,0,2"/>
-                                        <stk:Sparkline x:Name="VitalRamGraph" Height="44" LineColor="#4CAF50"/>
                                     </StackPanel>
                                 </Border>
                                 <Border Style="{StaticResource Card}" Margin="0,0,12,0">

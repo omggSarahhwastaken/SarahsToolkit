@@ -431,6 +431,7 @@ namespace SarahsToolkit
                     _settings.Settings.DefaultPage == "Last" ? 1 : 0;
                 SettingsTempCombo.SelectedIndex =
                     _settings.Settings.TempFahrenheit ? 1 : 0;
+                PerfTrackEnabled.IsChecked = _settings.Settings.LogPerformance;
             }
             finally { _applyingSettings = false; }
         }
@@ -1424,6 +1425,9 @@ namespace SarahsToolkit
         private void BackfillLedgerIfNeeded()
         {
             if (_settings.Settings.AppliedTweaks != null) return;
+            // Never cement defaults over a config file we failed to read —
+            // that blanked the whole config after a torn write.
+            if (_settings.HadFile && !_settings.LoadedOk) return;
             var ids = new List<string>();
             foreach (var tw in _tweakDefs)
             {
@@ -3067,6 +3071,11 @@ namespace SarahsToolkit
         private void PerfTrackEnabled_Changed(object sender, RoutedEventArgs e)
         {
             if (PerfTrackEnabled == null || PerfStatus == null) return;
+            if (!_applyingSettings)
+            {
+                _settings.Settings.LogPerformance = PerfTrackEnabled.IsChecked == true;
+                _settings.Save();
+            }
             if (PerfTrackEnabled.IsChecked == true)
             {
                 if (_perfTimer != null) _perfTimer.Start();
