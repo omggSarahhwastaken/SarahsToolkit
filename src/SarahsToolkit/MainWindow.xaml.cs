@@ -5,10 +5,12 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using SarahsToolkit.Models;
 using SarahsToolkit.Services;
@@ -28,10 +30,32 @@ namespace SarahsToolkit
         private CancellationTokenSource _cleanCts;
         private bool _buildingUi;
 
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute,
+            ref int pvAttribute, int cbAttribute);
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
         public MainWindow()
         {
             InitializeComponent();
             Loaded += MainWindow_Loaded;
+            SourceInitialized += MainWindow_SourceInitialized;
+        }
+
+        private void MainWindow_SourceInitialized(object sender, EventArgs e)
+        {
+            // Dark title bar to match the app theme (Windows 10 1809+).
+            try
+            {
+                IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                int dark = 1;
+                DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                    ref dark, sizeof(int));
+            }
+            catch
+            {
+                // Title bar just stays light on older Windows; harmless.
+            }
         }
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
