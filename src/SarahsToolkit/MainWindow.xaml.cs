@@ -16,6 +16,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using SarahsToolkit.Models;
 using SarahsToolkit.Services;
 
@@ -1315,7 +1316,9 @@ namespace SarahsToolkit
                         if (state == TweakState.Unknown)
                         {
                             toggle.IsEnabled = false;
-                            toggle.ToolTip = "Could not read current state: " + tw.Description;
+                            string why = _tweaks.GetStateError(tw);
+                            toggle.ToolTip = "Could not read current state" +
+                                (string.IsNullOrEmpty(why) ? "" : ": " + why);
                         }
                         toggle.Checked += TweakBox_Toggled;
                         toggle.Unchecked += TweakBox_Toggled;
@@ -1674,10 +1677,13 @@ namespace SarahsToolkit
             FreedLabel.Text = "";
 
             long totalFilesPlanned = Math.Max(1, selected.Sum(a => a.Files));
-            long bytesFreed = 0, filesDeleted = 0;
+            long bytesFreed = 0, filesDeleted = 0, filesSkipped = 0;
             string currentCat = null;
-            long catStartBytes = 0, catStartFiles = 0;
-            var perCat = new List<Tuple<string, long, long>>();
+            long catStartBytes = 0, catStartFiles = 0, catStartSkipped = 0;
+            string catSkipKind = "";
+            string topSkipKind = "";
+            long topSkipped = 0;
+            var perCat = new List<Tuple<string, long, long, long, string>>();
 
             var progress = new Progress<CleanupProgress>(p =>
             {
@@ -1685,20 +1691,30 @@ namespace SarahsToolkit
                 {
                     bytesFreed = p.BytesFreed;
                     filesDeleted = p.FilesDeleted;
+                    filesSkipped = p.SkippedFiles;
                     ProgressStage.Text = "Finishing…";
                     return;
                 }
                 if (p.Category != currentCat)
                 {
                     if (currentCat != null)
-                        perCat.Add(Tuple.Create(currentCat, bytesFreed - catStartBytes, filesDeleted - catStartFiles));
+                    {
+                        long cs = filesSkipped - catStartSkipped;
+                        perCat.Add(Tuple.Create(currentCat, bytesFreed - catStartBytes,
+                            filesDeleted - catStartFiles, cs, catSkipKind));
+                        if (cs > topSkipped) { topSkipped = cs; topSkipKind = catSkipKind; }
+                    }
                     currentCat = p.Category;
                     catStartBytes = bytesFreed;
                     catStartFiles = filesDeleted;
+                    catStartSkipped = filesSkipped;
+                    catSkipKind = "";
                     ProgressStage.Text = "Cleaning " + p.Category + "…";
                 }
                 bytesFreed = p.BytesFreed;
                 filesDeleted = p.FilesDeleted;
+                filesSkipped = p.SkippedFiles;
+                if (!string.IsNullOrEmpty(p.SkipKind)) catSkipKind = p.SkipKind;
                 double pct = Math.Min(100, (double)filesDeleted / totalFilesPlanned * 100);
                 CleanProgress.Value = pct;
                 ProgressPct.Text = ((int)pct) + "%";
@@ -1717,13 +1733,21 @@ namespace SarahsToolkit
             {
                 await _cleanup.CleanAsync(selected.Select(a => a.Cat).ToList(), progress, _cleanCts.Token);
                 if (currentCat != null)
-                    perCat.Add(Tuple.Create(currentCat, bytesFreed - catStartBytes, filesDeleted - catStartFiles));
+                {
+                    long cs = filesSkipped - catStartSkipped;
+                    perCat.Add(Tuple.Create(currentCat, bytesFreed - catStartBytes,
+                        filesDeleted - catStartFiles, cs, catSkipKind));
+                    if (cs > topSkipped) { topSkipped = cs; topSkipKind = catSkipKind; }
+                }
 
                 CleanProgress.Value = 100;
                 ProgressPct.Text = "100%";
                 ProgressStage.Text = "Done";
                 ProgressFile.Text = "";
                 CleanLog.Items.Add("=== Done: " + FormatBytes(bytesFreed) + " freed ===");
+                if (filesSkipped > 0)
+                    CleanLog.Items.Add("=== " + filesSkipped + " files could not be deleted" +
+                        (string.IsNullOrEmpty(topSkipKind) ? "" : " (" + topSkipKind + ")") + " ===");
 
                 // Post-clean summary, per category.
                 SummaryList.Children.Clear();
@@ -1734,9 +1758,13 @@ namespace SarahsToolkit
                     row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                     row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                     row.Children.Add(new TextBlock { Text = pc.Item1, TextWrapping = TextWrapping.Wrap });
+                    var amtText = FormatBytes(pc.Item2) + " · " + pc.Item3 + " files";
+                    if (pc.Item4 > 0)
+                        amtText += " · " + pc.Item4 + " skipped" +
+                            (string.IsNullOrEmpty(pc.Item5) ? "" : " (" + pc.Item5 + ")");
                     var amt = new TextBlock
                     {
-                        Text = FormatBytes(pc.Item2) + " · " + pc.Item3 + " files",
+                        Text = amtText,
                         Foreground = muted,
                         Margin = new Thickness(16, 0, 0, 0)
                     };
@@ -2545,6 +2573,48 @@ namespace SarahsToolkit
             await RunToolAsync("SFC scan", () => _diag.SfcScanAsync());
         }
 
+        /// <summary>
+        /// True when a startup entry is already disabled via Task Manager / Settings
+        /// (flagged in the StartupApproved keys, so Win32_StartupCommand still lists it).
+        /// These are hidden from the startup manager list.
+        /// </summary>
+        private static bool IsStartupEntryDisabled(string name, string location)
+        {
+            try
+            {
+                bool isRegistry = location.StartsWith("HKCU", StringComparison.OrdinalIgnoreCase) ||
+                                  location.StartsWith("HKLM", StringComparison.OrdinalIgnoreCase);
+                if (!isRegistry)
+                {
+                    using (var key = Registry.CurrentUser.OpenSubKey(
+                        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder", false))
+                    {
+                        if (key == null) return false;
+                        var v = key.GetValue(name) as byte[] ?? key.GetValue(name + ".lnk") as byte[];
+                        return v != null && v.Length > 0 && v[0] == 0x03;
+                    }
+                }
+                RegistryKey hive = location.StartsWith("HKLM", StringComparison.OrdinalIgnoreCase)
+                    ? Registry.LocalMachine : Registry.CurrentUser;
+                string[] subs =
+                {
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run",
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run32"
+                };
+                foreach (var sub in subs)
+                {
+                    using (var key = hive.OpenSubKey(sub, false))
+                    {
+                        if (key == null) continue;
+                        var v = key.GetValue(name) as byte[];
+                        if (v != null && v.Length > 0 && v[0] == 0x03) return true;
+                    }
+                }
+                return false;
+            }
+            catch { return false; }
+        }
+
         private async void StartupManager_Click(object sender, RoutedEventArgs e)
         {
             await RefreshStartupListAsync();
@@ -2559,23 +2629,26 @@ namespace SarahsToolkit
                 var r = await _diag.ListStartupAsync();
                 _startupEntries.Clear();
                 ToolsLog("Idx | Name | Command");
+                int visible = 0, hidden = 0;
                 foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                 {
                     var parts = line.Split('|');
                     if (parts.Length < 4) continue;
-                    int idx;
-                    if (!int.TryParse(parts[0], out idx)) continue;
+                    if (IsStartupEntryDisabled(parts[1], parts[3])) { hidden++; continue; }
                     _startupEntries.Add(new StartupEntry
                     {
-                        Index = idx,
+                        Index = visible,
                         Name = parts[1],
                         Command = parts[2],
                         Location = parts[3]
                     });
                     string cmd = parts[2];
                     if (cmd.Length > 80) cmd = cmd.Substring(0, 80) + "...";
-                    ToolsLog(parts[0] + " | " + parts[1] + " | " + cmd);
+                    ToolsLog(visible + " | " + parts[1] + " | " + cmd);
+                    visible++;
                 }
+                if (hidden > 0)
+                    ToolsLog("(" + hidden + " already-disabled " + (hidden == 1 ? "entry" : "entries") + " hidden)");
                 if (_startupEntries.Count == 0)
                     ToolsLog("(no startup entries found)");
                 else

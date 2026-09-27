@@ -41,6 +41,22 @@ namespace SarahsToolkit.Services
             }
         }
 
+        /// <summary>Returns the underlying read error when GetState reports Unknown, else "".</summary>
+        public string GetStateError(TweakDefinition tweak)
+        {
+            try
+            {
+                var c = tweak.Check;
+                if (c == null) return "no check defined for this tweak";
+                ReadValue(c.Hive, c.KeyPath, c.ValueName, c.Kind);
+                return "";
+            }
+            catch (Exception ex)
+            {
+                return ex.GetType().Name + ": " + ex.Message;
+            }
+        }
+
         public void Apply(TweakDefinition tweak)
         {
             foreach (var op in tweak.Apply) WriteOperation(op);
@@ -67,7 +83,13 @@ namespace SarahsToolkit.Services
                 object v = key.GetValue(name);
                 if (v == null) return null;
                 if (string.Equals(kind, "DWord", StringComparison.OrdinalIgnoreCase))
-                    return Convert.ToUInt32(v).ToString();
+                {
+                    // Be tolerant: if the value exists but isn't a clean DWORD (some tools
+                    // write these as strings/binary), don't blow up into Unknown — fall back
+                    // to the raw form so the toggle stays clickable and Apply can fix it.
+                    try { return Convert.ToUInt32(v).ToString(); }
+                    catch { return v.ToString(); }
+                }
                 return v.ToString();
             }
         }

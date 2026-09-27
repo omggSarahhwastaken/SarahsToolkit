@@ -38,6 +38,15 @@ namespace SarahsToolkit.Services
             ref SYSTEM_MEMORY_LIST_INFORMATION SystemInformation,
             int SystemInformationLength);
 
+        [DllImport("ntdll.dll")]
+        private static extern int RtlAdjustPrivilege(
+            int Privilege,
+            [MarshalAs(UnmanagedType.Bool)] bool Enable,
+            [MarshalAs(UnmanagedType.Bool)] bool CurrentThread,
+            out bool Enabled);
+
+        private const int SeProfileSingleProcessPrivilege = 13;
+
         [StructLayout(LayoutKind.Sequential)]
         private struct MEMORYSTATUSEX
         {
@@ -73,6 +82,10 @@ namespace SarahsToolkit.Services
             error = "";
             try
             {
+                // SystemMemoryListInformation requires SeProfileSingleProcessPrivilege.
+                // Admin tokens carry it but disabled by default; without enabling it
+                // the purge is refused.
+                RtlAdjustPrivilege(SeProfileSingleProcessPrivilege, true, false, out _);
                 var info = new SYSTEM_MEMORY_LIST_INFORMATION
                 {
                     Size = (UIntPtr)Marshal.SizeOf<SYSTEM_MEMORY_LIST_INFORMATION>(),

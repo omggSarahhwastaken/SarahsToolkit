@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,6 +17,8 @@ namespace SarahsToolkit.Services
         public string CurrentFile { get; set; }
         public long FilesDeleted { get; set; }
         public long BytesFreed { get; set; }
+        public long SkippedFiles { get; set; }
+        public string SkipKind { get; set; }
     }
 
     public class ScanResult
@@ -56,11 +60,13 @@ namespace SarahsToolkit.Services
             {
                 long totalBytes = 0;
                 long totalFiles = 0;
+                long totalSkipped = 0;
+                string lastSkipKind = "";
 
                 foreach (var cat in cats)
                 {
                     ct.ThrowIfCancellationRequested();
-                    Report(progress, cat.Name, "", totalFiles, totalBytes);
+                    Report(progress, cat.Name, "", totalFiles, totalBytes, totalSkipped, lastSkipKind);
 
                     if (cat.Special == "recyclebin")
                     {
@@ -86,15 +92,19 @@ namespace SarahsToolkit.Services
                                     try
                                     {
                                         long len = new FileInfo(file).Length;
-                                        File.Delete(file);
+                                        DeleteWithAclRetry(file);
                                         totalFiles++;
                                         totalBytes += len;
                                         if (totalFiles % 50 == 0)
-                                            Report(progress, cat.Name, file, totalFiles, totalBytes);
+                                            Report(progress, cat.Name, file, totalFiles, totalBytes, totalSkipped, lastSkipKind);
                                     }
-                                    catch
+                                    catch (Exception ex)
                                     {
-                                        // in use or access denied -> skip
+                                        // in use, access denied, or other -> count it with the
+                                        // reason instead of silently swallowing it
+                                        totalSkipped++;
+                                        lastSkipKind = ex is UnauthorizedAccessException ? "access denied"
+                                            : ex is IOException ? "in use" : "error";
                                     }
                                 }
                             }
@@ -112,19 +122,45 @@ namespace SarahsToolkit.Services
                     }
                 }
 
-                Report(progress, "Done", "", totalFiles, totalBytes);
+                Report(progress, "Done", "", totalFiles, totalBytes, totalSkipped, lastSkipKind);
                 return totalBytes;
             }, ct);
         }
 
-        private static void Report(IProgress<CleanupProgress> progress, string category, string file, long files, long bytes)
+        /// <summary>
+        /// Deletes a file, retrying once after resetting its ACL when access is
+        /// denied (updaters and crash handlers often leave temp files with
+        /// restrictive DACLs that even admins can't delete directly).
+        /// </summary>
+        private static void DeleteWithAclRetry(string file)
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                var fi = new FileInfo(file);
+                var acl = fi.GetAccessControl();
+                acl.SetAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                    FileSystemRights.FullControl, AccessControlType.Allow));
+                fi.SetAccessControl(acl);
+                File.Delete(file);
+            }
+        }
+
+        private static void Report(IProgress<CleanupProgress> progress, string category, string file,
+            long files, long bytes, long skipped, string skipKind)
         {
             progress.Report(new CleanupProgress
             {
                 Category = category,
                 CurrentFile = file,
                 FilesDeleted = files,
-                BytesFreed = bytes
+                BytesFreed = bytes,
+                SkippedFiles = skipped,
+                SkipKind = skipKind
             });
         }
 
