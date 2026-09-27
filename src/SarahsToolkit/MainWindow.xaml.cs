@@ -550,14 +550,6 @@ namespace SarahsToolkit
             return total;
         }
 
-        private static string FormatBytes(long b)
-        {
-            if (b < 1024) return b + " B";
-            double kb = b / 1024.0;
-            if (kb < 1024) return kb.ToString("0.#") + " KB";
-            return (kb / 1024.0).ToString("0.##") + " MB";
-        }
-
         private void SettingsReset_Click(object sender, RoutedEventArgs e)
         {
             var res = MessageBox.Show("Reset all settings to their defaults?",

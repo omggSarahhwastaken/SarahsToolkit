@@ -18,12 +18,14 @@ namespace SarahsToolkit.Services
 
     /// <summary>
     /// Watches for known game processes and logs CPU / RAM / temperature
-    /// while one is running. The log is a rolling 1 MB file: when it would
-    /// exceed the cap, the oldest entries are trimmed automatically.
+    /// while one is running. The log is a rolling 150 MB file: when it would
+    /// exceed the cap, the oldest entries are trimmed automatically — enough
+    /// for well over a month of gameplay history.
     /// </summary>
     public class PerformanceTrackerService
     {
-        public const long MaxLogBytes = 1024 * 1024; // 1 MB hard cap
+        public const long MaxLogBytes = 150L * 1024 * 1024; // 150 MB hard cap
+        private readonly object _logLock = new object();
 
         /// <summary>When true, temperatures display and log in Fahrenheit.</summary>
         public bool Fahrenheit { get; set; }
@@ -121,23 +123,59 @@ namespace SarahsToolkit.Services
             string path = LogPath;
             string dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            // Disk IO happens off the UI thread: a trim can move ~100 MB and
+            // must never freeze the app. A lock keeps concurrent trims safe.
+            string lineCopy = line, pathCopy = path;
+            Task.Run(() =>
+            {
+                lock (_logLock)
+                {
+                    try { AppendLogCore(pathCopy, lineCopy); } catch { }
+                }
+            });
+        }
+
+        private void AppendLogCore(string path, string line)
+        {
             var fi = new FileInfo(path);
             byte[] bytes = Encoding.UTF8.GetBytes(line + "\r\n");
             if (fi.Exists && fi.Length + bytes.Length > MaxLogBytes)
             {
-                // Rolling cap: drop the oldest lines until we're back under 70%.
-                var lines = File.ReadAllLines(path, Encoding.UTF8).ToList();
-                long size = fi.Length;
+                // Rolling cap: keep the newest ~70%, drop the oldest.
+                // Stream-based (seek + copy the tail) so a large cap doesn't
+                // spike memory; the file is never loaded whole.
                 long target = (long)(MaxLogBytes * 0.7);
-                int drop = 0;
-                while (drop < lines.Count && size > target)
+                string tmpPath = path + ".tmp";
+                try
                 {
-                    size -= Encoding.UTF8.GetByteCount(lines[drop]) + 2;
-                    drop++;
+                    using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        long start = Math.Max(0, input.Length - target);
+                        input.Seek(start, SeekOrigin.Begin);
+                        // Align to the next full line so no partial entry survives.
+                        if (start > 0)
+                        {
+                            int b;
+                            while ((b = input.ReadByte()) != -1)
+                            {
+                                if (b == '\n') break;
+                            }
+                        }
+                        using (var output = new FileStream(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                        {
+                            input.CopyTo(output);
+                            output.Write(bytes, 0, bytes.Length);
+                        }
+                    }
+                    File.Delete(path);
+                    File.Move(tmpPath, path);
                 }
-                lines = lines.Skip(drop).ToList();
-                lines.Add(line);
-                File.WriteAllLines(path, lines, Encoding.UTF8);
+                catch
+                {
+                    try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+                    // Fall back to a plain append; the trim will be retried next time.
+                    File.AppendAllText(path, line + "\r\n", Encoding.UTF8);
+                }
             }
             else
             {

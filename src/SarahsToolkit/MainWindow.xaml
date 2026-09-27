@@ -569,7 +569,7 @@
                                                 Click="PerfClearLog_Click"/>
                                     </StackPanel>
                                     <TextBlock Style="{StaticResource Muted12}" TextWrapping="Wrap"
-                                               Text="Detects Fortnite, Roblox, Minecraft Java, VRChat, DCS World and GTA V, then logs CPU, RAM and temperature every 15 seconds. The log never grows past 1 MB — oldest entries are trimmed automatically."/>
+                                               Text="Detects Fortnite, Roblox, Minecraft Java, VRChat, DCS World and GTA V, then logs CPU, RAM and temperature every 15 seconds. The log keeps over a month of history and never grows past 150 MB — oldest entries are trimmed automatically."/>
                                 </StackPanel>
                             </GroupBox>
                             <GroupBox Header="Windows" Margin="0,0,0,10" Padding="10">
@@ -694,7 +694,7 @@
                                         <Button Content="Reset all settings" Click="SettingsReset_Click"/>
                                     </StackPanel>
                                     <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
-                                               Text="Settings live in a single settings.json file. The only log is the performance tracker log, capped at 1 MB."/>
+                                               Text="Settings live in a single settings.json file. The only log is the performance tracker log, capped at 150 MB."/>
                                 </StackPanel>
                             </GroupBox>
                             <GroupBox Header="Storage" Margin="0,0,0,12" Padding="10">
