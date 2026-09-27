@@ -31,6 +31,10 @@ namespace SarahsToolkit.Services
         private List<PerformanceCounter> _gpuEngines;
         private int _gpuRefreshCountdown;
         private readonly Ping _ping = new Ping();
+        // Samples run every second; ping at most every 30th sample so the
+        // dashboard can't cause ping spikes while gaming.
+        private const int PingEverySamples = 30;
+        private int _pingCountdown = 1; // ping on the very first sample
 
         public double Cpu { get; private set; } = double.NaN;
         public double Gpu { get; private set; } = double.NaN;
@@ -138,7 +142,19 @@ namespace SarahsToolkit.Services
             }
             try
             {
-                var pingTask = PingOnceAsync();
+                Task<double> pingTask;
+                lock (_gate)
+                {
+                    if (--_pingCountdown <= 0)
+                    {
+                        _pingCountdown = PingEverySamples;
+                        pingTask = PingOnceAsync();
+                    }
+                    else
+                    {
+                        pingTask = Task.FromResult(double.NaN);
+                    }
+                }
                 double cpu = double.NaN, gpu = double.NaN, ram = double.NaN,
                        disk = double.NaN, netMbps = double.NaN;
                 await Task.Run(() =>
@@ -191,9 +207,12 @@ namespace SarahsToolkit.Services
                 lock (_gate)
                 {
                     if (_disposed) return;
-                    Cpu = cpu; Gpu = gpu; Ram = ram; Disk = disk; NetMbps = netMbps; PingMs = ping;
+                    Cpu = cpu; Gpu = gpu; Ram = ram; Disk = disk; NetMbps = netMbps;
                     _cpuHist.Push(cpu); _gpuHist.Push(gpu); _ramHist.Push(ram);
-                    _diskHist.Push(disk); _netHist.Push(netMbps); _pingHist.Push(ping);
+                    _diskHist.Push(disk); _netHist.Push(netMbps);
+                    // PingMs keeps its last value between pings so the readout
+                    // stays stable instead of flickering every second.
+                    if (!double.IsNaN(ping)) { PingMs = ping; _pingHist.Push(ping); }
                 }
             }
             finally
