@@ -213,7 +213,7 @@ namespace SarahsToolkit.Services
             sb.Append("foreach ($t in $targets) { ");
             sb.Append("$it = Get-Item $t -Force -ErrorAction SilentlyContinue; ");
             sb.Append("if (-not $it) { continue }; ");
-            sb.Append("$size = (Get-ChildItem $t -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
+            sb.Append("$size = (Get-ChildItem $t -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
             sb.Append("if ($size) { $total += $size }; ");
             sb.Append("if ($it.PSIsContainer) { Remove-Item \"$t\\*\" -Recurse -Force -ErrorAction SilentlyContinue } ");
             sb.Append("else { Remove-Item $t -Force -ErrorAction SilentlyContinue } }; ");
@@ -254,7 +254,7 @@ namespace SarahsToolkit.Services
             sb.Append("foreach ($pat in $patterns) { ");
             sb.Append("foreach ($r in (Resolve-Path $pat -ErrorAction SilentlyContinue)) { ");
             sb.Append("$p = $r.Path; ");
-            sb.Append("$size = (Get-ChildItem $p -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
+            sb.Append("$size = (Get-ChildItem $p -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
             sb.Append("if ($size) { $total += $size }; ");
             sb.Append("$n++; ");
             sb.Append("Remove-Item \"$p\\*\" -Recurse -Force -ErrorAction SilentlyContinue; } }; ");
@@ -267,7 +267,7 @@ namespace SarahsToolkit.Services
             var sb = new StringBuilder();
             sb.Append("if (-not (Test-Path 'C:\\Windows.old')) { Write-Output 'No Windows.old folder found. Nothing to remove.' } ");
             sb.Append("else { ");
-            sb.Append("$size = (Get-ChildItem 'C:\\Windows.old' -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
+            sb.Append("$size = (Get-ChildItem 'C:\\Windows.old' -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
             sb.Append("takeown /F 'C:\\Windows.old' /A /R /D Y >$null 2>&1; ");
             sb.Append("icacls 'C:\\Windows.old' /grant '*S-1-5-32-544:F' /T /C /Q >$null 2>&1; ");
             sb.Append("Remove-Item 'C:\\Windows.old' -Recurse -Force -ErrorAction SilentlyContinue; ");
@@ -282,7 +282,7 @@ namespace SarahsToolkit.Services
             sb.Append("$total = 0; $n = 0; ");
             sb.Append("foreach ($d in @('C:\\AMD', 'C:\\NVIDIA', 'C:\\Intel')) { ");
             sb.Append("if (Test-Path $d) { ");
-            sb.Append("$size = (Get-ChildItem $d -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
+            sb.Append("$size = (Get-ChildItem $d -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
             sb.Append("if ($size) { $total += $size }; ");
             sb.Append("$n++; ");
             sb.Append("Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue; } }; ");
