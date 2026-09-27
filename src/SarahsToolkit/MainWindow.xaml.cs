@@ -115,8 +115,11 @@ namespace SarahsToolkit
             _tray = new System.Windows.Forms.NotifyIcon();
             try
             {
-                _tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(
-                    Assembly.GetExecutingAssembly().Location);
+                // Environment.ProcessPath works for single-file apps, where
+                // Assembly.Location returns an empty string.
+                string exePath = Environment.ProcessPath;
+                if (!string.IsNullOrEmpty(exePath))
+                    _tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
             }
             catch { }
             _tray.Text = "Sarah's Toolkit";

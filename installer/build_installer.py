@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Build SarahsToolkitInstaller_x64.exe.
 
-1. Zips the Sarah's Toolkit source tree (payload).
+1. Zips the payload: a self-contained publish folder (--payload-dir), or the
+   Sarah's Toolkit source tree by default (dev/legacy).
 2. Cross-compiles installer.c to a Windows x64 exe with zig.
 3. Appends: [exe][zip payload][u64 LE zip size][b"STKINSTL"].
 
 Usage:
-    python3 build_installer.py <repo_root> <zig_binary> <out_exe>
+    python3 build_installer.py <repo_root> <zig_binary> <out_exe> [--payload-dir <dir>]
 """
 import os
 import struct
@@ -40,26 +41,59 @@ def make_payload(repo_root, skip_files=()):
     return bio.getvalue(), [r for _, r in names]
 
 
+def app_version(repo_root):
+    """Read <Version> from the csproj so the installer reports it honestly."""
+    import re
+    csproj = os.path.join(repo_root, "src", "SarahsToolkit", "SarahsToolkit.csproj")
+    try:
+        m = re.search(r"<Version>([^<]+)</Version>", open(csproj).read())
+        if m:
+            return m.group(1).strip()
+    except OSError:
+        pass
+    return "1.0.0"
+
+
 def main(argv):
-    if len(argv) != 4:
+    # Usage: build_installer.py <repo_root> <zig> <out_exe> [--payload-dir <dir>]
+    # Default payload is the source tree (dev/legacy). --payload-dir zips a
+    # self-contained publish folder instead — the modern install path.
+    args = argv[1:]
+    payload_dir = None
+    if "--payload-dir" in args:
+        i = args.index("--payload-dir")
+        payload_dir = args[i + 1]
+        del args[i:i + 2]
+    if len(args) != 3:
         print(__doc__.strip().splitlines()[-3])
+        print("  [--payload-dir <dir>]: zip a publish folder instead of the source tree")
         return 2
-    repo_root, zig, out_exe = argv[1], argv[2], argv[3]
+    repo_root, zig, out_exe = args
     here = os.path.dirname(os.path.abspath(__file__))
     src_c = os.path.join(here, "installer.c")
     exe_tmp = os.path.join(here, "_installer_tmp.exe")
 
-    payload, names = make_payload(repo_root, skip_files={
-        "_installer_tmp.exe", "_installer_tmp.pdb",
-        os.path.basename(out_exe), "SarahsToolkitInstaller_x64.exe",
-    })
-    print(f"payload: {len(payload)} bytes, {len(names)} files")
-    assert any(n == "SarahsToolkit.sln" for n in names), "solution missing from payload!"
-    assert any(n == "src/SarahsToolkit/SarahsToolkit.csproj" for n in names), "csproj missing!"
+    if payload_dir:
+        payload, names = make_payload(payload_dir, skip_files={
+            "_installer_tmp.exe", "_installer_tmp.pdb",
+            os.path.basename(out_exe), "SarahsToolkitInstaller_x64.exe",
+        })
+        print(f"payload: {len(payload)} bytes, {len(names)} files (self-contained app)")
+        assert any(n == "SarahsToolkit.exe" for n in names), "app exe missing from payload!"
+    else:
+        payload, names = make_payload(repo_root, skip_files={
+            "_installer_tmp.exe", "_installer_tmp.pdb",
+            os.path.basename(out_exe), "SarahsToolkitInstaller_x64.exe",
+        })
+        print(f"payload: {len(payload)} bytes, {len(names)} files")
+        assert any(n == "SarahsToolkit.sln" for n in names), "solution missing from payload!"
+        assert any(n == "src/SarahsToolkit/SarahsToolkit.csproj" for n in names), "csproj missing!"
 
+    version = app_version(repo_root)
     cmd = [zig, "cc", "-target", "x86_64-windows-gnu", "-O2",
+           f'-DAPP_VERSION="{version}"',
            src_c, "-o", exe_tmp,
-           "-lurlmon", "-lwintrust", "-lcrypt32", "-lole32", "-lshell32", "-luuid"]
+           "-lole32", "-lshell32", "-luuid"]
     print("compiling:", " ".join(cmd))
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
