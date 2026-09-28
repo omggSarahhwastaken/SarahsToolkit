@@ -54,6 +54,7 @@ namespace SarahsToolkit
             new Dictionary<string, TextBlock>();
         private List<DebloatApp> _debloatApps = new List<DebloatApp>();
         private List<ServiceDefinition> _serviceDefs = new List<ServiceDefinition>();
+        private readonly List<Tuple<CheckBox, TextBlock>> _serviceRows = new List<Tuple<CheckBox, TextBlock>>();
         private bool _servicesRefreshed = false;
         private bool _dashboardLoaded = false;
         private readonly GameFeedService _games = new GameFeedService();
@@ -2401,6 +2402,7 @@ namespace SarahsToolkit
         private void BuildServicesList()
         {
             ServicesPanel.Children.Clear();
+            _serviceRows.Clear();
             var muted = (Brush)FindResource("DkMutedBrush");
             foreach (var def in _serviceDefs)
             {
@@ -2422,6 +2424,7 @@ namespace SarahsToolkit
                     Margin = new Thickness(20, 0, 0, 0)
                 };
                 ServicesPanel.Children.Add(desc);
+                _serviceRows.Add(Tuple.Create(cb, desc));
                 if (!string.IsNullOrWhiteSpace(def.Impact))
                 {
                     ServicesPanel.Children.Add(new TextBlock
@@ -2459,12 +2462,11 @@ namespace SarahsToolkit
             }
             var muted = (Brush)FindResource("DkMutedBrush");
             var normal = (Brush)FindResource("DkTextBrush");
-            int i = 0;
-            foreach (var def in _serviceDefs)
+            foreach (var row in _serviceRows)
             {
-                if (i >= ServicesPanel.Children.Count) break;
-                var cb = (CheckBox)ServicesPanel.Children[i++];
-                var desc = (TextBlock)ServicesPanel.Children[i++];
+                var cb = row.Item1;
+                var desc = row.Item2;
+                var def = (ServiceDefinition)cb.Tag;
                 cb.IsEnabled = def.Status != "Missing";
                 cb.IsChecked = false;
                 desc.Text = def.Description + "  —  Status: " + def.Status +
