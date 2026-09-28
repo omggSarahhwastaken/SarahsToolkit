@@ -25,17 +25,13 @@ namespace SarahsToolkit.Services
             MemoryPurgeLowPriorityStandbyList = 5,
         }
 
-        [StructLayout(LayoutKind.Sequential)]
-        private struct SYSTEM_MEMORY_LIST_INFORMATION
-        {
-            public UIntPtr Size;
-            public MemoryListCommand Command;
-        }
-
+        // NOTE: despite the SYSTEM_MEMORY_LIST_INFORMATION struct in some
+        // headers, the kernel expects just the command DWORD here — passing
+        // the struct (with its Size field) gets STATUS_INVALID_PARAMETER.
         [DllImport("ntdll.dll")]
         private static extern int NtSetSystemInformation(
             int SystemInformationClass,
-            ref SYSTEM_MEMORY_LIST_INFORMATION SystemInformation,
+            ref int SystemInformation,
             int SystemInformationLength);
 
         [DllImport("ntdll.dll")]
@@ -86,13 +82,9 @@ namespace SarahsToolkit.Services
                 // Admin tokens carry it but disabled by default; without enabling it
                 // the purge is refused.
                 RtlAdjustPrivilege(SeProfileSingleProcessPrivilege, true, false, out _);
-                var info = new SYSTEM_MEMORY_LIST_INFORMATION
-                {
-                    Size = (UIntPtr)Marshal.SizeOf<SYSTEM_MEMORY_LIST_INFORMATION>(),
-                    Command = MemoryListCommand.MemoryPurgeStandbyList
-                };
+                int command = (int)MemoryListCommand.MemoryPurgeStandbyList;
                 int status = NtSetSystemInformation(SystemMemoryListInformation,
-                    ref info, Marshal.SizeOf<SYSTEM_MEMORY_LIST_INFORMATION>());
+                    ref command, sizeof(int));
                 if (status != 0)
                 {
                     error = "Windows refused the purge (status 0x" + status.ToString("X8") + ").";

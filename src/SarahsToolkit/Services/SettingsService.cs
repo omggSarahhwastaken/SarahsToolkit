@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 
 namespace SarahsToolkit.Services
@@ -22,6 +21,11 @@ namespace SarahsToolkit.Services
         public bool LoadedOk { get; private set; }
         // True when a settings file existed at Load() time, even if unreadable.
         public bool HadFile { get; private set; }
+        // True when a file existed but neither it nor the backup could be
+        // read. While set, Save() refuses to write: a broken load followed by
+        // any save used to cement defaults over the user's real config and
+        // destroy the only good backup in the process.
+        private bool _brokenConfig;
 
         public SettingsService()
         {
@@ -36,30 +40,43 @@ namespace SarahsToolkit.Services
         {
             LoadedOk = false;
             HadFile = false;
-            try
+            _brokenConfig = false;
+            bool mainOk = false;
+            if (File.Exists(SettingsPath))
             {
-                if (File.Exists(SettingsPath))
+                HadFile = true;
+                try
                 {
-                    HadFile = true;
                     var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath));
-                    if (s != null) { Settings = s; LoadedOk = true; }
+                    if (s != null) { Settings = s; mainOk = true; }
                 }
-                // Main file missing or unreadable (e.g. a torn write from a
-                // previous run being killed mid-save): try the backup before
-                // giving up and falling back to defaults.
-                if (!LoadedOk && File.Exists(BackupPath))
+                catch { /* corrupt or locked: fall through to the backup */ }
+            }
+            // The main file can be unreadable for transient reasons (a torn
+            // write from a killed save, an AV lock, a full disk). A failure
+            // here must NEVER skip the backup — that was the config wiper.
+            if (!mainOk && File.Exists(BackupPath))
+            {
+                HadFile = true;
+                try
                 {
-                    HadFile = true;
                     var b = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(BackupPath));
                     if (b != null) { Settings = b; LoadedOk = true; }
                 }
+                catch { /* backup unreadable too */ }
             }
-            catch { /* corrupted file: fall back to defaults */ }
+            else if (mainOk)
+            {
+                LoadedOk = true;
+            }
+            _brokenConfig = HadFile && !LoadedOk;
             Sanitize();
         }
 
         public void Save()
         {
+            // Refuse to cement defaults over a config we failed to read.
+            if (_brokenConfig) return;
             try
             {
                 Sanitize();
@@ -81,22 +98,19 @@ namespace SarahsToolkit.Services
             }
             catch
             {
-                // Last resort: a plain overwrite beats silently losing the change.
-                try
-                {
-                    File.WriteAllText(SettingsPath, JsonSerializer.Serialize(Settings,
-                        new JsonSerializerOptions { WriteIndented = true }));
-                }
-                catch { }
+                // If the atomic write failed, leave the existing files alone.
+                // The old plain-overwrite fallback could tear the main file
+                // mid-write and that torn file is what started this whole saga.
             }
         }
 
         public void Reset()
         {
             Settings = new AppSettings();
-            Save();
+            _brokenConfig = false;
             LoadedOk = true;
             HadFile = true;
+            Save();
         }
 
         private void Sanitize()
@@ -105,9 +119,6 @@ namespace SarahsToolkit.Services
             if (s.GuiScale < 0.8 || s.GuiScale > 1.5) s.GuiScale = 1.0;
             if (s.DefaultPage != "Home" && s.DefaultPage != "Last") s.DefaultPage = "Home";
             if (string.IsNullOrWhiteSpace(s.LastPage)) s.LastPage = "Home";
-            if (s.AppliedTweaks != null)
-                s.AppliedTweaks = s.AppliedTweaks
-                    .Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
         }
     }
 
@@ -121,12 +132,6 @@ namespace SarahsToolkit.Services
         public string LastPage { get; set; } = "Home";
         public bool TempFahrenheit { get; set; } = false;
         public bool LogPerformance { get; set; } = true;
-        // Tweak ledger: IDs of tweaks the user applied through the app.
-        // This is what makes your toggles survive updates: on launch the app
-        // compares this list against the live registry and offers to re-apply
-        // anything that got reverted elsewhere (e.g. by a Windows update).
-        // Null = recorded by an older version; backfilled once from live state.
-        public List<string> AppliedTweaks { get; set; }
         // Idle temperature baseline (Celsius, -1 = not recorded). Recorded on
         // demand from the Tools page; gaming temps are shown against it.
         public int IdleTempC { get; set; } = -1;
