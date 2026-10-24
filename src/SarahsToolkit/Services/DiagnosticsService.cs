@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using SarahsToolkit.Models;
 
@@ -56,7 +57,16 @@ namespace SarahsToolkit.Services
                 "$results = foreach ($t in $targets) { " +
                 "$size = 0; " +
                 "if (Test-Path -LiteralPath $t.Path) { " +
-                "try { foreach ($f in [System.IO.Directory]::EnumerateFiles($t.Path, '*', 'AllDirectories')) { try { $size += (Get-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue).Length } catch {} } } catch {} }; " +
+                // Stack walk instead of EnumerateFiles(AllDirectories): a
+                // directory-junction cycle used to loop until OOM/hang.
+                // Reparse points are never descended into and depth is capped.
+                "try { $st = New-Object System.Collections.Stack; $st.Push(@{ P=$t.Path; D=0 }); " +
+                "while ($st.Count -gt 0) { $cur = $st.Pop(); " +
+                "if ($cur.D -gt 32) { continue }; " +
+                "foreach ($f in (Get-ChildItem -LiteralPath $cur.P -File -Force -ErrorAction SilentlyContinue)) { try { $size += $f.Length } catch {} }; " +
+                "foreach ($d in (Get-ChildItem -LiteralPath $cur.P -Directory -Force -ErrorAction SilentlyContinue)) { " +
+                "if ($d.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { continue }; " +
+                "$st.Push(@{ P=$d.FullName; D=($cur.D + 1) }) } } } catch {} }; " +
                 "[pscustomobject]@{ Name=$t.Name; MB=[math]::Round($size / 1MB, 1); Path=$t.Path } }; " +
                 "$results | Sort-Object MB -Descending | Select-Object -First 10 | ForEach-Object { Write-Output ($_.Name + ': ' + $_.MB + ' MB  [' + $_.Path + ']') }";
             return Task.Run(() => PowerShellRunner.RunScript(script, 10));
@@ -165,10 +175,21 @@ namespace SarahsToolkit.Services
                 "bitsadmin /reset /allusers | Out-Null; " +
                 "$svcs = @('bits', 'wuauserv', 'cryptsvc', 'msiserver'); " +
                 "foreach ($s in $svcs) { Stop-Service -Name $s -Force -ErrorAction SilentlyContinue }; " +
+                "$results = @(); " +
                 "foreach ($d in @('C:\\Windows\\SoftwareDistribution', 'C:\\Windows\\System32\\catroot2')) { " +
-                "if (Test-Path -LiteralPath $d) { Rename-Item -LiteralPath $d -NewName ((Split-Path $d -Leaf) + '.old') -ErrorAction SilentlyContinue } }; " +
+                "$name = Split-Path $d -Leaf; $old = $d + '.old'; " +
+                "if (-not (Test-Path -LiteralPath $d)) { $results += ($name + ': not present, nothing to reset') } " +
+                "else { " +
+                // A pre-existing .old used to make every later rename fail
+                // (target exists) while success was still reported. Clear it
+                // first so the rename can succeed, then verify it worked.
+                "if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue }; " +
+                "Rename-Item -LiteralPath $d -NewName ($name + '.old') -ErrorAction SilentlyContinue; " +
+                "if (Test-Path -LiteralPath $old) { $results += ($name + ': reset') } " +
+                "else { $results += ($name + ': FAILED (could not rename)') } } }; " +
                 "foreach ($s in $svcs) { Start-Service -Name $s -ErrorAction SilentlyContinue }; " +
-                "Write-Output 'Windows Update components reset. Open Windows Update and check for updates.'";
+                "foreach ($r in $results) { Write-Output $r }; " +
+                "Write-Output 'Update fixer finished. Open Windows Update and check for updates.'";
             return Task.Run(() => PowerShellRunner.RunScript(script, 10));
         }
 
@@ -302,10 +323,15 @@ namespace SarahsToolkit.Services
             sb.Append("foreach ($pat in $patterns) { ");
             sb.Append("foreach ($r in (Resolve-Path $pat -ErrorAction SilentlyContinue)) { ");
             sb.Append("$p = $r.Path; ");
-            sb.Append("$size = (Get-ChildItem $p -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; ");
+            // Log files only (*.log, *.dmp, *.txt). These folders are NOT
+            // logs-only — Social Club holds profiles/settings and GTA V
+            // holds game data — so wiping whole folders destroyed non-log
+            // data. Files are matched recursively; empty folders are left.
+            sb.Append("$files = Get-ChildItem $p -Recurse -Force -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '^\\.(log|dmp|txt)$' }; ");
+            sb.Append("$size = ($files | Measure-Object -Property Length -Sum).Sum; ");
             sb.Append("if ($size) { $total += $size }; ");
             sb.Append("$n++; ");
-            sb.Append("Remove-Item \"$p\\*\" -Recurse -Force -ErrorAction SilentlyContinue; } }; ");
+            sb.Append("$files | Remove-Item -Force -ErrorAction SilentlyContinue; } }; ");
             sb.Append("Write-Output ('Game/app logs cleared (' + $n + ' folders). Freed: ' + [math]::Round($total / 1MB, 1) + ' MB'); ");
             return Task.Run(() => PowerShellRunner.RunScript(sb.ToString(), 5));
         }
@@ -435,6 +461,8 @@ namespace SarahsToolkit.Services
         /// DNS baselines with .NET Ping (4 probes per host, 1.2s timeout).
         /// Roblox publishes no ping endpoint and blocks ICMP, so it is
         /// measured with TCP connect timing to www.roblox.com:443 instead.
+        /// Hosts are probed in parallel (SemaphoreSlim caps concurrency at
+        /// 4); probes within one host stay sequential, as before.
         /// </summary>
         public async Task<List<PingTargetResult>> PingGameServersAsync()
         {
@@ -453,57 +481,76 @@ namespace SarahsToolkit.Services
                 ("Baseline Cloudflare", "1.1.1.1", 0),
                 ("Baseline Google", "8.8.8.8", 0),
             };
-            return await Task.Run(() =>
+            var results = new PingTargetResult[targets.Length];
+            using (var gate = new SemaphoreSlim(4))
             {
-                var results = new List<PingTargetResult>();
-                foreach (var t in targets)
+                var tasks = targets.Select(async (t, i) =>
                 {
-                    var times = new List<long>();
-                    int lost = 0;
-                    if (t.tcpPort > 0)
+                    await gate.WaitAsync();
+                    try { results[i] = await ProbeTargetAsync(t.name, t.host, t.tcpPort); }
+                    finally { gate.Release(); }
+                });
+                await Task.WhenAll(tasks);
+            }
+            return results.ToList();
+        }
+
+        private static async Task<PingTargetResult> ProbeTargetAsync(string name, string host, int tcpPort)
+        {
+            var times = new List<long>();
+            int lost = 0;
+            if (tcpPort > 0)
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    try
                     {
-                        for (int i = 0; i < 4; i++)
+                        using (var c = new TcpClient())
                         {
-                            try
-                            {
-                                using (var c = new TcpClient())
-                                {
-                                    var sw = Stopwatch.StartNew();
-                                    bool ok = c.ConnectAsync(t.host, t.tcpPort).Wait(2000);
-                                    sw.Stop();
-                                    if (ok && c.Connected) times.Add(sw.ElapsedMilliseconds);
-                                    else lost++;
-                                }
-                            }
-                            catch { lost++; }
-                        }
-                    }
-                    else
-                    {
-                        using (var p = new Ping())
-                        {
-                            for (int i = 0; i < 4; i++)
+                            var sw = Stopwatch.StartNew();
+                            var connect = c.ConnectAsync(host, tcpPort);
+                            var timeout = Task.Delay(2000);
+                            var done = await Task.WhenAny(connect, timeout);
+                            sw.Stop();
+                            if (done == connect)
                             {
                                 try
                                 {
-                                    PingReply r = p.Send(t.host, 1200);
-                                    if (r.Status == IPStatus.Success) times.Add(r.RoundtripTime);
+                                    await connect;
+                                    if (c.Connected) times.Add(sw.ElapsedMilliseconds);
                                     else lost++;
                                 }
                                 catch { lost++; }
                             }
+                            else lost++;
                         }
                     }
-                    results.Add(new PingTargetResult
-                    {
-                        Name = t.name,
-                        Host = t.tcpPort > 0 ? t.host + ":" + t.tcpPort : t.host,
-                        AvgMs = times.Count > 0 ? (long)Math.Round(times.Average()) : -1,
-                        LossPct = lost * 25
-                    });
+                    catch { lost++; }
                 }
-                return results;
-            });
+            }
+            else
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    try
+                    {
+                        using (var p = new Ping())
+                        {
+                            PingReply r = await p.SendPingAsync(host, 1200);
+                            if (r.Status == IPStatus.Success) times.Add(r.RoundtripTime);
+                            else lost++;
+                        }
+                    }
+                    catch { lost++; }
+                }
+            }
+            return new PingTargetResult
+            {
+                Name = name,
+                Host = tcpPort > 0 ? host + ":" + tcpPort : host,
+                AvgMs = times.Count > 0 ? (long)Math.Round(times.Average()) : -1,
+                LossPct = lost * 25
+            };
         }
     }
 

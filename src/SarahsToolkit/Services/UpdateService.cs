@@ -15,6 +15,7 @@ namespace SarahsToolkit.Services
         public string LocalVersion { get; set; } = "";
         public string Url { get; set; } = "";
         public string Encoding { get; set; } = "";
+        public string Sha256 { get; set; } = "";
         public string Notes { get; set; } = "";
         public string Message { get; set; } = "";
     }
@@ -44,12 +45,20 @@ namespace SarahsToolkit.Services
                         string latest = root.GetProperty("version").GetString() ?? "";
                         string dl = root.TryGetProperty("url", out var u) ? u.GetString() ?? "" : "";
                         string enc = root.TryGetProperty("encoding", out var e) ? e.GetString() ?? "" : "";
+                        string sha = root.TryGetProperty("sha256", out var h) ? h.GetString() ?? "" : "";
                         string notes = root.TryGetProperty("notes", out var n) ? n.GetString() ?? "" : "";
                         if (string.IsNullOrWhiteSpace(latest) || string.IsNullOrWhiteSpace(dl))
                             return new UpdateInfo
                             {
                                 Available = false,
                                 Message = "You're on v" + current + ". No releases published yet."
+                            };
+                        if (!TryParseVersion(latest))
+                            return new UpdateInfo
+                            {
+                                Available = false,
+                                Message = "Update check failed: the published version '" + latest +
+                                    "' could not be read. You're still on v" + current + "."
                             };
                         if (IsNewer(latest, current))
                             return new UpdateInfo
@@ -59,6 +68,7 @@ namespace SarahsToolkit.Services
                                 LocalVersion = current,
                                 Url = dl,
                                 Encoding = enc,
+                                Sha256 = sha,
                                 Notes = notes
                             };
                         return new UpdateInfo
@@ -85,6 +95,16 @@ namespace SarahsToolkit.Services
             {
                 return false;
             }
+        }
+
+        // True when the manifest version parses as a .NET Version after
+        // normalization. A malformed version (e.g. "2.6.0-beta") used to be
+        // swallowed by IsNewer and silently never offer the update; callers
+        // now surface this as a visible "update check failed" message.
+        private static bool TryParseVersion(string v)
+        {
+            try { var _ = new Version(Normalize(v)); return true; }
+            catch { return false; }
         }
 
         private static string Normalize(string v)

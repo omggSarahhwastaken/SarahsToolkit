@@ -14,7 +14,13 @@ namespace SarahsToolkit.Services
 
     /// <summary>
     /// Runs a PowerShell script from a temp file that is always deleted afterwards,
-    /// so no helper artifacts are left on the machine.
+    /// so no helper artifacts are left on the machine. Never throws: a startup or
+    /// temp-file failure returns an error result (ExitCode -1) instead, so an
+    /// unguarded async void caller can't be killed by it.
+    /// NOTE on timeouts: only powershell.exe itself is killed. Children the
+    /// script spawned (e.g. sfc.exe, DISM) are not in a job object and may
+    /// keep running after a timeout; callers that need a hard stop should
+    /// wait on the child process they care about themselves.
     /// </summary>
     public static class PowerShellRunner
     {
@@ -60,6 +66,10 @@ namespace SarahsToolkit.Services
                         Error = error.ToString()
                     };
                 }
+            }
+            catch (Exception ex)
+            {
+                return new PowerShellResult { ExitCode = -1, Error = ex.Message };
             }
             finally
             {

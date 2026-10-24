@@ -31,10 +31,21 @@ namespace SarahsToolkit.Services
     {
         public List<CleanupCategory> LoadCategories()
         {
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "cleanup.json");
-            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            return JsonSerializer.Deserialize<List<CleanupCategory>>(File.ReadAllText(path), opts)
-                   ?? new List<CleanupCategory>();
+            try
+            {
+                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "cleanup.json");
+                var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                return JsonSerializer.Deserialize<List<CleanupCategory>>(File.ReadAllText(path), opts)
+                       ?? new List<CleanupCategory>();
+            }
+            catch
+            {
+                // Missing/corrupt cleanup.json must never kill Analyze (or the
+                // Quick/Full Clean and post-clean re-analyze paths that route
+                // through it). Callers treat an empty list as a load failure
+                // and show an error instead of cleaning nothing silently.
+                return new List<CleanupCategory>();
+            }
         }
 
         public Task<long> ScanAsync(CleanupCategory cat)
@@ -241,13 +252,20 @@ namespace SarahsToolkit.Services
             }
         }
 
+        // A directory-junction/symlink cycle inside a cleaned tree used to
+        // loop until OOM/hang: every cycle hop re-queues the same subtree.
+        // Reparse points are never descended into, and depth is capped, so
+        // a cycle terminates instead of looping forever.
+        private const int MaxEnumerateDepth = 32;
+
         private static IEnumerable<string> SafeEnumerateFiles(string dir, string pattern)
         {
-            var stack = new Stack<string>();
-            stack.Push(dir);
+            var stack = new Stack<(string Dir, int Depth)>();
+            stack.Push((dir, 0));
             while (stack.Count > 0)
             {
-                string current = stack.Pop();
+                var (current, depth) = stack.Pop();
+                if (depth > MaxEnumerateDepth) continue;
                 string[] subdirs = Array.Empty<string>();
                 string[] files = Array.Empty<string>();
                 try { subdirs = Directory.GetDirectories(current); }
@@ -255,7 +273,13 @@ namespace SarahsToolkit.Services
                 try { files = Directory.GetFiles(current, pattern); }
                 catch { }
                 foreach (var f in files) yield return f;
-                foreach (var d in subdirs) stack.Push(d);
+                foreach (var d in subdirs)
+                {
+                    bool isReparse = false;
+                    try { isReparse = (File.GetAttributes(d) & FileAttributes.ReparsePoint) != 0; }
+                    catch { continue; }
+                    if (!isReparse) stack.Push((d, depth + 1));
+                }
             }
         }
     }

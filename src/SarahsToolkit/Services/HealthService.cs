@@ -38,7 +38,14 @@ namespace SarahsToolkit.Services
                     using (var p = Process.Start(psi))
                     {
                         if (p == null) return info;
-                        p.WaitForExit(30000);
+                        bool exited = p.WaitForExit(30000);
+                        if (!exited)
+                        {
+                            // A timeout used to leave powercfg.exe running
+                            // (the return value was ignored). Kill it so a
+                            // stuck report can't linger after this call.
+                            try { p.Kill(); p.WaitForExit(5000); } catch { }
+                        }
                     }
                     if (!File.Exists(xmlPath)) return info;
                     var doc = XDocument.Load(xmlPath);

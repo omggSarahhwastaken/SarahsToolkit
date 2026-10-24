@@ -23,6 +23,7 @@
 #include <string.h>
 #include <conio.h>
 #include <shlobj.h>
+#include <tlhelp32.h>
 
 #define APP_DISPLAY_NAME    "Sarah's Toolkit"
 #define APP_DIR_NAME        "SarahsToolkit"
@@ -391,6 +392,42 @@ static void DoUninstall(const char *selfPath) {
     DoUninstallGo(selfPath);
 }
 
+/* Terminate any running copies of the app before the install-dir wipe, so a
+ * stale process (e.g. one still shutting down after an update, or left open
+ * while manually re-running a downloaded installer) can never hold the
+ * install folder locked and produce a mixed old/new install.
+ * Returns 1 if a copy is still running after the wait. */
+static int KillRunningApp(void) {
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    PROCESSENTRY32 pe;
+    DWORD selfPid;
+    int stillRunning = 0;
+    if (snap == INVALID_HANDLE_VALUE)
+        return 0;
+    pe.dwSize = sizeof(pe);
+    selfPid = GetCurrentProcessId();
+    if (Process32First(snap, &pe)) {
+        do {
+            if (pe.th32ProcessID != selfPid && StrCaseEq(pe.szExeFile, APP_EXE_NAME)) {
+                HANDLE h = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE,
+                                       FALSE, pe.th32ProcessID);
+                if (h) {
+                    TerminateProcess(h, 1);
+                    if (WaitForSingleObject(h, 5000) == WAIT_TIMEOUT)
+                        stillRunning = 1;
+                    CloseHandle(h);
+                    printf("  Closed a running copy of %s (pid %lu).\n",
+                           APP_EXE_NAME, (unsigned long)pe.th32ProcessID);
+                } else {
+                    stillRunning = 1;
+                }
+            }
+        } while (Process32Next(snap, &pe));
+    }
+    CloseHandle(snap);
+    return stillRunning;
+}
+
 /* ------------------------------------------------------------------ */
 /* Install                                                             */
 /* ------------------------------------------------------------------ */
@@ -435,6 +472,9 @@ static void DoInstall(const char *selfPath) {
 
     /* ---- Step 2: install ---------------------------------------- */
     printf("[2/2] Installing to %s...\n", installDir);
+    if (KillRunningApp())
+        Fail("Sarah's Toolkit is still running and could not be closed. "
+             "Please close it and run the installer again.");
     /* Clean-install semantics: remove the old install dir first so an
      * update can never leave stale files behind. Never wipe the folder
      * we are currently running from. */
@@ -505,10 +545,15 @@ int main(int argc, char **argv) {
     GetModuleFileNameA(NULL, selfPath, sizeof(selfPath));
     /* Update mode: the app's updater saves the installer as
      * SarahsToolkitSetup_update.exe. In that case, launch the app when
-     * done and close this window automatically (no "press any key"). */
+     * done and close this window automatically (no "press any key").
+     * Only the filename component is checked: a folder in the path
+     * containing "_update" (e.g. C:\_updates\...) must not trigger
+     * auto-close mode on a manual install. */
     {
         char lower[MAX_PATH];
-        strncpy(lower, selfPath, sizeof(lower) - 1);
+        const char *name = strrchr(selfPath, '\\');
+        name = name ? name + 1 : selfPath;
+        strncpy(lower, name, sizeof(lower) - 1);
         lower[sizeof(lower) - 1] = 0;
         for (char *p = lower; *p; p++)
             if (*p >= 'A' && *p <= 'Z') *p += 32;

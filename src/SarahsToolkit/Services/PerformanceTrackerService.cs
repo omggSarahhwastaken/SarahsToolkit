@@ -167,8 +167,11 @@ namespace SarahsToolkit.Services
                             output.Write(bytes, 0, bytes.Length);
                         }
                     }
-                    File.Delete(path);
-                    File.Move(tmpPath, path);
+                    // Atomic swap (no backup file, so the log cap stays a cap):
+                    // delete-then-move used to lose the whole log if the move
+                    // failed. On failure the catch below keeps the old log and
+                    // appends instead; the trim is retried next time.
+                    File.Replace(tmpPath, path, null);
                 }
                 catch
                 {

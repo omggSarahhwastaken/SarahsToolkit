@@ -1920,7 +1920,22 @@ namespace SarahsToolkit
             _analyses.Clear();
 
             bool quick = ModeQuick.IsChecked == true;
-            var cats = _cleanup.LoadCategories().Where(c => !quick || c.QuickClean).ToList();
+            var allCats = _cleanup.LoadCategories();
+            if (allCats.Count == 0)
+            {
+                // LoadCategories returns empty on a missing/corrupt
+                // Data\cleanup.json instead of throwing; say so plainly
+                // rather than showing a 0-category analysis (or crashing,
+                // as before). This also covers the Quick/Full Clean buttons
+                // and the post-clean re-analyze, which route through here.
+                SetStatus("Analysis failed: cleanup data could not be loaded.");
+                MessageBox.Show("Could not load the cleanup categories (Data\\cleanup.json is missing or corrupt). " +
+                    "Reinstalling the app restores it; nothing was cleaned.",
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AnalyzeButton.IsEnabled = true;
+                return;
+            }
+            var cats = allCats.Where(c => !quick || c.QuickClean).ToList();
             SetStatus("Analyzing " + cats.Count + " categories...");
 
             long totalBytes = 0, totalFiles = 0;
@@ -2126,7 +2141,15 @@ namespace SarahsToolkit
                 MessageBox.Show(mode + " complete.\n" + FormatBytes(bytesFreed) + " freed in " +
                     filesDeleted + " files.", "Sarah's Toolkit", MessageBoxButton.OK,
                     MessageBoxImage.Information);
-                await AnalyzeAsync();
+                // Separate from the clean above: a re-analyze failure (e.g.
+                // a missing cleanup.json) must not be reported as
+                // "Clean failed" when the clean itself succeeded.
+                try { await AnalyzeAsync(); }
+                catch (Exception ex)
+                {
+                    SetStatus("Clean complete, but the follow-up analysis failed: " + ex.Message);
+                    AnalyzeButton.IsEnabled = true;
+                }
             }
             catch (OperationCanceledException)
             {
@@ -2465,12 +2488,19 @@ namespace SarahsToolkit
 
         private async void AutoDns_Click(object sender, RoutedEventArgs e)
         {
-            SetStatus("Pinging DNS providers to find the fastest...");
-            var r = await _tools.AutoSelectDnsAsync();
-            string line = FirstLineStartingWith(r.Output, "DNS auto-selected:");
-            if (string.IsNullOrEmpty(line))
-                line = FirstLineStartingWith(r.Output, "DNS auto-select failed");
-            SetStatus(!string.IsNullOrEmpty(line) ? line : "DNS auto-select finished.");
+            try
+            {
+                SetStatus("Pinging DNS providers to find the fastest...");
+                var r = await _tools.AutoSelectDnsAsync();
+                string line = FirstLineStartingWith(r.Output, "DNS auto-selected:");
+                if (string.IsNullOrEmpty(line))
+                    line = FirstLineStartingWith(r.Output, "DNS auto-select failed");
+                SetStatus(!string.IsNullOrEmpty(line) ? line : "DNS auto-select finished.");
+            }
+            catch (Exception ex)
+            {
+                SetStatus("DNS auto-select failed: " + ex.Message);
+            }
         }
 
         private async void SpeedTest_Click(object sender, RoutedEventArgs e)
@@ -2498,17 +2528,28 @@ namespace SarahsToolkit
                 if (result != null)
                 {
                     var parts = result.Split('|');
-                    double down = 0;
-                    double.TryParse(parts[1], out down);
-                    SetGaugeTarget(down);
-                    GaugeValue.Text = parts[1] + " Mbps";
-                    SpeedDetails.Text =
-                        "ISP: " + parts[3] + "\n" +
-                        "Ping: " + parts[0] + " ms\n" +
-                        "Download: " + parts[1] + " Mbps\n" +
-                        "Upload: " + parts[2] + " Mbps\n" +
-                        (wifi ?? "").TrimEnd('\n');
-                    SpeedUrl.Text = url != null ? "Full results: " + url : "";
+                    if (parts.Length < 4)
+                    {
+                        // Malformed RESULT| line: report a partial failure
+                        // instead of throwing on parts[1..3] and reporting
+                        // the whole test as failed.
+                        SpeedDetails.Text = "Speed test returned an incomplete result: " + result;
+                        SpeedUrl.Text = "";
+                    }
+                    else
+                    {
+                        double down = 0;
+                        double.TryParse(parts[1], out down);
+                        SetGaugeTarget(down);
+                        GaugeValue.Text = parts[1] + " Mbps";
+                        SpeedDetails.Text =
+                            "ISP: " + parts[3] + "\n" +
+                            "Ping: " + parts[0] + " ms\n" +
+                            "Download: " + parts[1] + " Mbps\n" +
+                            "Upload: " + parts[2] + " Mbps\n" +
+                            (wifi ?? "").TrimEnd('\n');
+                        SpeedUrl.Text = url != null ? "Full results: " + url : "";
+                    }
                 }
                 else
                 {
@@ -2659,11 +2700,19 @@ namespace SarahsToolkit
                 "Run network rescue? This flushes DNS, resets Winsock and TCP/IP, and renews the DHCP lease. Your connection will drop briefly.",
                 "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirm != MessageBoxResult.Yes) return;
-            SetStatus("Running network rescue...");
-            var r = await _tools.NetworkRescueAsync();
-            SetStatus(r.Output.Contains("done") ? "Network rescue done. Reboot recommended." : "Network rescue attempted - check Tools output.");
-            ToolsLog("=== Network rescue ===");
-            ToolsLog((r.Output ?? "").Trim());
+            try
+            {
+                SetStatus("Running network rescue...");
+                var r = await _tools.NetworkRescueAsync();
+                SetStatus(r.Output.Contains("done") ? "Network rescue done. Reboot recommended." : "Network rescue attempted - check Tools output.");
+                ToolsLog("=== Network rescue ===");
+                ToolsLog((r.Output ?? "").Trim());
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Network rescue failed: " + ex.Message);
+                ToolsLog("Network rescue FAILED: " + ex.Message);
+            }
         }
 
         // ---------- Diagnostics (Tools tab) ----------
@@ -2752,6 +2801,8 @@ namespace SarahsToolkit
 
         private async void RefreshDefenderPanel()
         {
+            try
+            {
             DefenderStatusLabel.Text = "Scanning for installed apps…";
             var apps = await Task.Run(() => DefenderExclusionService.DetectKnownApps());
             string err = "";
@@ -2801,6 +2852,13 @@ namespace SarahsToolkit
                 : "Found " + visible.Count + " known app(s). Uncheck any you don't want excluded.";
             if (!string.IsNullOrEmpty(err))
                 DefenderStatusLabel.Text = "Could not read current exclusions: " + err;
+            }
+            catch (Exception ex)
+            {
+                // Runs on every switch to the Security page; a failure here
+                // (e.g. PowerShell failing to start) must not kill the app.
+                DefenderStatusLabel.Text = "Could not load Defender exclusions: " + ex.Message;
+            }
         }
 
         private void DefenderRefresh_Click(object sender, RoutedEventArgs e)
@@ -2851,6 +2909,8 @@ namespace SarahsToolkit
                 DefenderStatusLabel.Text = "Select an exclusion to remove.";
                 return;
             }
+            try
+            {
             // The list shows censored paths; re-read the real ones and match by censored form.
             string err = "";
             var real = await Task.Run(() => DefenderExclusionService.GetExclusions(out err));
@@ -2864,6 +2924,11 @@ namespace SarahsToolkit
             DefenderStatusLabel.Text = ok ? "Removed exclusion." : "Failed: " + err;
             ToolsLog((ok ? "Defender exclusion removed: " : "Defender exclusion removal FAILED: ") + CensorUserName(target));
             RefreshDefenderPanel();
+            }
+            catch (Exception ex)
+            {
+                DefenderStatusLabel.Text = "Failed: " + ex.Message;
+            }
         }
 
         private async void DefenderAddCustom_Click(object sender, RoutedEventArgs e)
@@ -2874,12 +2939,19 @@ namespace SarahsToolkit
                 DefenderStatusLabel.Text = "Enter an existing folder path first.";
                 return;
             }
-            string err = "";
-            bool ok = await Task.Run(() => DefenderExclusionService.TryAddExclusions(new[] { path }, out err));
-            DefenderStatusLabel.Text = ok ? "Excluded." : "Failed: " + err;
-            ToolsLog((ok ? "Defender exclusion added: " : "Defender exclusion FAILED: ") + CensorUserName(path));
-            if (ok) DefenderCustomPath.Text = "";
-            RefreshDefenderPanel();
+            try
+            {
+                string err = "";
+                bool ok = await Task.Run(() => DefenderExclusionService.TryAddExclusions(new[] { path }, out err));
+                DefenderStatusLabel.Text = ok ? "Excluded." : "Failed: " + err;
+                ToolsLog((ok ? "Defender exclusion added: " : "Defender exclusion FAILED: ") + CensorUserName(path));
+                if (ok) DefenderCustomPath.Text = "";
+                RefreshDefenderPanel();
+            }
+            catch (Exception ex)
+            {
+                DefenderStatusLabel.Text = "Failed: " + ex.Message;
+            }
         }
 
         private async void PurgeMemory_Click(object sender, RoutedEventArgs e)
@@ -3147,12 +3219,20 @@ namespace SarahsToolkit
 
         private async void ClearCrashDumps_Click(object sender, RoutedEventArgs e)
         {
+            var confirm = MessageBox.Show(
+                "Clear crash dumps? This permanently deletes Windows minidumps, error reports and local crash dumps.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
             await RunToolAsync("Clear crash dumps", () => _diag.ClearCrashDumpsAsync());
         }
 
         private async void ClearGameLogs_Click(object sender, RoutedEventArgs e)
         {
-            await RunToolAsync("Clear game logs & data", () => _diag.ClearGameLogsAsync());
+            var confirm = MessageBox.Show(
+                "Clear game/app logs? This permanently deletes only log files (*.log, *.dmp, *.txt) in game and app log folders. Your game profiles, settings and saves are not touched.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            await RunToolAsync("Clear game logs", () => _diag.ClearGameLogsAsync());
         }
 
         private async void RemoveWindowsOld_Click(object sender, RoutedEventArgs e)
@@ -3260,6 +3340,24 @@ namespace SarahsToolkit
                         bytes = Convert.FromBase64String(await client.GetStringAsync(dlUrl));
                     else
                         bytes = await client.GetByteArrayAsync(dlUrl);
+                    // Integrity check, when the manifest publishes one: a
+                    // compromised or wrong manifest/CDN response must never
+                    // be executed. No hash in the manifest means no check
+                    // (older manifests predate the field).
+                    if (!string.IsNullOrWhiteSpace(info.Sha256))
+                    {
+                        string actual;
+                        using (var sha = System.Security.Cryptography.SHA256.Create())
+                            actual = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "");
+                        if (!string.Equals(actual, info.Sha256.Trim(), StringComparison.OrdinalIgnoreCase))
+                        {
+                            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+                            MessageBox.Show("The downloaded update failed its integrity check (SHA-256 mismatch) and was not installed. Please try again later.",
+                                "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            SetStatus("Ready.");
+                            return;
+                        }
+                    }
                     File.WriteAllBytes(tmp, bytes);
                 }
                 SetStatus("Launching installer...");
@@ -3437,7 +3535,7 @@ namespace SarahsToolkit
                 var cats = _cleanup.LoadCategories();
                 int bad = cats.Count(c => string.IsNullOrWhiteSpace(c.Id) ||
                     string.IsNullOrWhiteSpace(c.Name) || c.Paths == null);
-                DevLogLine((bad == 0 ? "PASS" : "FAIL") + ": cleanup.json — " +
+                DevLogLine(((bad == 0 && cats.Count > 0) ? "PASS" : "FAIL") + ": cleanup.json — " +
                     cats.Count + " categories, " + bad + " invalid");
             }
             catch (Exception ex) { DevLogLine("FAIL: cleanup.json — " + ex.Message); }
