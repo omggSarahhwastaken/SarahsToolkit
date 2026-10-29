@@ -642,6 +642,10 @@
                                         <TextBlock x:Name="SummaryTotal" Margin="8,0,0,0" FontWeight="Bold"
                                                    Foreground="{StaticResource DkAccentHoverBrush}"/>
                                     </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <Button Content="Copy report" Width="110" Margin="0,0,8,0" Click="CopyReport_Click"/>
+                                        <Button Content="Copy card image" Width="130" Click="CopyCardImage_Click"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
@@ -874,6 +878,24 @@
                                     <Button Content="Delete restore points" Width="140" Margin="0,0,8,8" Click="DeleteRestorePoints_Click"/>
                                 </WrapPanel>
                             </GroupBox>
+                            <GroupBox Header="Files" Margin="0,0,0,10" Padding="10">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Button x:Name="FindDuplicatesBtn" Content="Find duplicates" Width="130" Margin="0,0,8,0"
+                                                Click="FindDuplicates_Click"/>
+                                        <Button x:Name="CancelDupScanBtn" Content="Cancel" Width="80"
+                                                Click="CancelDupScan_Click" IsEnabled="False"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="Delete groups (e.g. 0,2,3 or all):" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource DkMutedBrush}"/>
+                                        <TextBox x:Name="DupIndicesBox" Width="140" Margin="8,0,8,0" VerticalAlignment="Center"/>
+                                        <Button Content="Delete" Width="80" Click="DeleteDuplicates_Click"/>
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource Muted12}" TextWrapping="Wrap"
+                                               Text="Scans Downloads and Documents for identical files (same size, then SHA-256). The first file in each group is always kept; the rest go to the Recycle Bin, so nothing is gone for good."/>
+                                </StackPanel>
+                            </GroupBox>
                             <GroupBox Header="Memory" Margin="0,0,0,10" Padding="10">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
@@ -976,6 +998,10 @@
                                        Text="Windows cleanup, debloat and optimization. Sidebar-driven, data-driven, and safe by default."/>
                             <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
                                        Text="Runs as administrator. Helper scripts are generated to a temp file, run once, and deleted - nothing is logged or left behind. The debloat list and cleanup behavior are derived from Sarah's Optimizer."/>
+                            <Button Content="Leave a review" Width="140" HorizontalAlignment="Left"
+                                    Margin="0,16,0,0" Click="LeaveReview_Click"/>
+                            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Opens the Toolkit's GitHub page in your browser, where you can star it if you like it."/>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

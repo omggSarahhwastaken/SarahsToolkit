@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -14,6 +15,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -34,6 +36,15 @@ namespace SarahsToolkit
         private readonly UpdateService _updates = new UpdateService();
         private readonly PerformanceTrackerService _perf = new PerformanceTrackerService();
         private readonly SettingsService _settings = new SettingsService();
+        private readonly DuplicateFinderService _dups = new DuplicateFinderService();
+        private List<DuplicateGroup> _dupGroups = new List<DuplicateGroup>();
+        private CancellationTokenSource _dupCts;
+        // Last completed clean, for the shareable report.
+        private string _reportMode = "";
+        private long _reportBytes, _reportFiles, _reportSkipped;
+        private double _reportSeconds;
+        private DateTime _reportDate;
+        private List<Tuple<string, long, long, long, string>> _reportCats = new List<Tuple<string, long, long, long, string>>();
         private bool _applyingSettings;
         private DispatcherTimer _perfTimer;
         private bool _perfSampling;
@@ -544,6 +555,20 @@ namespace SarahsToolkit
             _settings.Settings.TempFahrenheit = SettingsTempCombo.SelectedIndex == 1;
             _settings.Save();
             _perf.Fahrenheit = _settings.Settings.TempFahrenheit;
+        }
+
+        private void LeaveReview_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("https://github.com/omggSarahhwastaken/SarahsToolkit")
+                    { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not open the GitHub page:\n" + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void SettingsOpenFolder_Click(object sender, RoutedEventArgs e)
@@ -2091,6 +2116,7 @@ namespace SarahsToolkit
                 FreedLabel.Text = FormatBytes(bytesFreed) + " freed · " + filesDeleted + " files";
             });
 
+            var cleanStarted = DateTime.Now;
             try
             {
                 await _cleanup.CleanAsync(selected.Select(a => a.Cat).ToList(), progress, _cleanCts.Token);
@@ -2136,6 +2162,13 @@ namespace SarahsToolkit
                 }
                 SummaryTotal.Text = FormatBytes(bytesFreed) + " · " + filesDeleted + " files";
                 SummaryCard.Visibility = Visibility.Visible;
+                _reportMode = mode;
+                _reportBytes = bytesFreed;
+                _reportFiles = filesDeleted;
+                _reportSkipped = filesSkipped;
+                _reportSeconds = (DateTime.Now - cleanStarted).TotalSeconds;
+                _reportDate = DateTime.Now;
+                _reportCats = new List<Tuple<string, long, long, long, string>>(perCat);
 
                 SetStatus("Clean complete: " + FormatBytes(bytesFreed) + " freed.");
                 MessageBox.Show(mode + " complete.\n" + FormatBytes(bytesFreed) + " freed in " +
@@ -2175,6 +2208,179 @@ namespace SarahsToolkit
             CleanButton.IsEnabled = !running;
             CancelCleanButton.IsEnabled = running;
             if (running) ProgressCard.Visibility = Visibility.Visible;
+        }
+
+        // ---------- Duplicate finder (Tools > Files) ----------
+
+        private async void FindDuplicates_Click(object sender, RoutedEventArgs e)
+        {
+            FindDuplicatesBtn.IsEnabled = false;
+            CancelDupScanBtn.IsEnabled = true;
+            _dupCts = new CancellationTokenSource();
+            ToolsOutput.Text = "Scanning Downloads and Documents for identical files…\r\n";
+            var progress = new Progress<string>(s => ToolsOutput.AppendText(s + "\r\n"));
+            try
+            {
+                var result = await _dups.ScanAsync(progress, _dupCts.Token);
+                _dupGroups = result.Groups;
+                ToolsOutput.AppendText($"Done: {result.FilesScanned} files scanned, {result.Groups.Count} duplicate groups, " +
+                    $"{FormatBytes(result.TotalReclaimable)} reclaimable.\r\n");
+                if (result.SkippedFiles > 0)
+                    ToolsOutput.AppendText($"{result.SkippedFiles} files skipped (locked or unreadable).\r\n");
+                int shown = 0;
+                foreach (var g in result.Groups)
+                {
+                    if (shown >= 200)
+                    {
+                        ToolsOutput.AppendText($"…and {result.Groups.Count - shown} more groups (still deletable by index).\r\n");
+                        break;
+                    }
+                    ToolsOutput.AppendText($"Group {shown}: {g.Files.Count} files × {FormatBytes(g.SizeEach)} " +
+                        $"(frees {FormatBytes(g.Reclaimable)})\r\n");
+                    foreach (var f in g.Files.Take(10))
+                        ToolsOutput.AppendText("  " + f.Path + "\r\n");
+                    if (g.Files.Count > 10)
+                        ToolsOutput.AppendText($"  …and {g.Files.Count - 10} more\r\n");
+                    shown++;
+                }
+                if (result.Groups.Count == 0)
+                    ToolsOutput.AppendText("No duplicates found. Nice.\r\n");
+            }
+            catch (OperationCanceledException)
+            {
+                ToolsOutput.AppendText("Scan cancelled.\r\n");
+            }
+            catch (Exception ex)
+            {
+                ToolsOutput.AppendText("Scan failed: " + ex.Message + "\r\n");
+            }
+            finally
+            {
+                FindDuplicatesBtn.IsEnabled = true;
+                CancelDupScanBtn.IsEnabled = false;
+            }
+        }
+
+        private void CancelDupScan_Click(object sender, RoutedEventArgs e)
+        {
+            _dupCts?.Cancel();
+        }
+
+        private void DeleteDuplicates_Click(object sender, RoutedEventArgs e)
+        {
+            if (_dupGroups == null || _dupGroups.Count == 0)
+            {
+                MessageBox.Show("Scan for duplicates first.", "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string raw = (DupIndicesBox.Text ?? "").Trim();
+            var indices = new HashSet<int>();
+            if (raw.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                for (int i = 0; i < _dupGroups.Count; i++) indices.Add(i);
+            }
+            else
+            {
+                foreach (var part in raw.Split(','))
+                {
+                    if (int.TryParse(part.Trim(), out int idx) && idx >= 0 && idx < _dupGroups.Count)
+                        indices.Add(idx);
+                }
+            }
+            if (indices.Count == 0)
+            {
+                MessageBox.Show("Type group numbers (e.g. 0,2,3) or 'all'.", "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var chosen = indices.Select(i => _dupGroups[i]).ToList();
+            long reclaim = chosen.Sum(g => g.Reclaimable);
+            int fileCount = chosen.Sum(g => g.Files.Count - 1);
+            var confirm = MessageBox.Show(
+                $"Delete {fileCount} duplicate files ({FormatBytes(reclaim)}) to the Recycle Bin?\n\n" +
+                "The first file in each group is kept. Deleted copies can be restored from the Recycle Bin.",
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+            var (deleted, failed, bytesFreed) = _dups.DeleteGroups(chosen);
+            ToolsOutput.AppendText($"Deleted {deleted} files ({FormatBytes(bytesFreed)}) to the Recycle Bin." +
+                (failed > 0 ? $" {failed} could not be deleted." : "") + "\r\n");
+            _dupGroups = new List<DuplicateGroup>();
+            ToolsOutput.AppendText("Scan again to refresh the list.\r\n");
+        }
+
+        // ---------- Shareable clean report ----------
+
+        private static string FormatDuration(double seconds)
+        {
+            if (seconds < 60) return ((int)seconds) + "s";
+            return ((int)(seconds / 60)) + "m " + ((int)(seconds % 60)) + "s";
+        }
+
+        private string BuildReportText()
+        {
+            var top = _reportCats.Where(c => c.Item2 > 0).OrderByDescending(c => c.Item2).Take(4).ToList();
+            var sb = new StringBuilder();
+            sb.AppendLine("🧹 Sarah's Toolkit — " + _reportMode);
+            sb.AppendLine("💾 " + FormatBytes(_reportBytes) + " freed · " + _reportFiles.ToString("N0") + " files");
+            sb.AppendLine("⏱ " + FormatDuration(_reportSeconds) + " · 📅 " + _reportDate.ToString("MMM d, yyyy"));
+            if (_reportSkipped > 0)
+                sb.AppendLine("⚠ " + _reportSkipped.ToString("N0") + " files skipped");
+            if (top.Count > 0)
+            {
+                sb.AppendLine("Top categories:");
+                foreach (var c in top)
+                    sb.AppendLine("• " + c.Item1 + " — " + FormatBytes(c.Item2) + " · " + c.Item3.ToString("N0") + " files");
+            }
+            return sb.ToString().TrimEnd();
+        }
+
+        private void CopyReport_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_reportMode))
+            {
+                MessageBox.Show("Clean something first.", "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            Clipboard.SetText(BuildReportText());
+            SetStatus("Report copied — paste it into Discord.");
+        }
+
+        private void CopyCardImage_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_reportMode))
+            {
+                MessageBox.Show("Clean something first.", "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var card = BuildReportCard();
+            card.Measure(new Size(640, 360));
+            card.Arrange(new Rect(0, 0, 640, 360));
+            card.UpdateLayout();
+            var bmp = new RenderTargetBitmap(1280, 720, 192, 192, PixelFormats.Pbgra32);
+            bmp.Render(card);
+            Clipboard.SetImage(bmp);
+            SetStatus("Card image copied — paste it into Discord.");
+        }
+
+        private Border BuildReportCard()
+        {
+            var accent = (Brush)FindResource("DkAccentBrush");
+            var muted = (Brush)FindResource("DkMutedBrush");
+            var stack = new StackPanel();
+            stack.Children.Add(new TextBlock { Text = "Sarah's Toolkit", FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 4) });
+            stack.Children.Add(new TextBlock { Text = _reportMode, FontSize = 15, Foreground = muted, Margin = new Thickness(0, 0, 0, 16) });
+            stack.Children.Add(new TextBlock { Text = FormatBytes(_reportBytes) + " freed", FontSize = 46, FontWeight = FontWeights.Bold, Foreground = accent, Margin = new Thickness(0, 0, 0, 4) });
+            stack.Children.Add(new TextBlock { Text = _reportFiles.ToString("N0") + " files · " + FormatDuration(_reportSeconds) + " · " + _reportDate.ToString("MMM d, yyyy"), FontSize = 14, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 16) });
+            foreach (var c in _reportCats.Where(c => c.Item2 > 0).OrderByDescending(c => c.Item2).Take(3))
+                stack.Children.Add(new TextBlock { Text = c.Item1 + " — " + FormatBytes(c.Item2), FontSize = 13, Foreground = muted, Margin = new Thickness(0, 0, 0, 2) });
+            stack.Children.Add(new TextBlock { Text = "Cleaned with Sarah's Toolkit", FontSize = 11, Foreground = muted, Margin = new Thickness(0, 16, 0, 0) });
+            return new Border
+            {
+                Width = 640, Height = 360,
+                Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x26)),
+                CornerRadius = new CornerRadius(18),
+                BorderBrush = accent, BorderThickness = new Thickness(2),
+                Padding = new Thickness(28), Child = stack
+            };
         }
 
         // ---------- Copy buttons (paste output into Discord) ----------
