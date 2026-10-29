@@ -557,6 +557,12 @@ namespace SarahsToolkit
             _perf.Fahrenheit = _settings.Settings.TempFahrenheit;
         }
 
+        private void HelpJump_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string page)
+                NavigateToPage(page);
+        }
+
         private void LeaveReview_Click(object sender, RoutedEventArgs e)
         {
             try

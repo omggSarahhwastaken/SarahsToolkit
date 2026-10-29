@@ -1002,6 +1002,63 @@
                                     Margin="0,16,0,0" Click="LeaveReview_Click"/>
                             <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
                                        Text="Opens the Toolkit's GitHub page in your browser, where you can star it if you like it."/>
+                            <TextBlock Style="{StaticResource H2}" Margin="0,24,0,4" Text="What do you want to do?"/>
+                            <TextBlock TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Pick a goal and it takes you straight to the right page."/>
+                            <Button Content="Make my PC faster" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,12,0,0" Tag="Optimize" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Privacy, gaming and performance tweaks on Optimize."/>
+                            <Button Content="Optimize in one click" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Presets" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="One-click bundles of the Optimize tweaks on Presets."/>
+                            <Button Content="Free up space" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Cleanup" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Temporary files and caches on Cleanup — Quick Clean or Full Clean."/>
+                            <Button Content="Find big or duplicate files" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Tools" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Space analyzer and Duplicate Finder on Tools."/>
+                            <Button Content="Remove junk apps" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Debloat" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Unwanted preinstalled apps on Debloat — common apps are never listed."/>
+                            <Button Content="Fix a slow startup" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Tools" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Startup manager on Tools, plus trimming Services."/>
+                            <Button Content="Fix laggy internet or game ping" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Network" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="DNS, speed test, game ping test, and network rescue on Network."/>
+                            <Button Content="Change how Windows looks" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Customize" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Theme, taskbar, Explorer, and Start on Customize."/>
+                            <Button Content="Check my PC's health" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Home" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Health score and fixes on Home; battery and storage detail on Health."/>
+                            <Button Content="Make my PC more secure" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Security" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Defender exclusions and hardening tweaks on Security."/>
+                            <TextBlock Style="{StaticResource H2}" Margin="0,24,0,4" Text="Every section, explained"/>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Home — "/><Run Text="System overview, health score, and quick fixes."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Health — "/><Run Text="Battery, storage, and system maintenance."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Cleanup — "/><Run Text="Temporary files and caches."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Debloat — "/><Run Text="Remove unwanted preinstalled apps."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Services — "/><Run Text="Trim unnecessary Windows services."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Optimize — "/><Run Text="Privacy, gaming, and performance tweaks."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Presets — "/><Run Text="One-click tweak bundles."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Customize — "/><Run Text="Theme, taskbar, Explorer, and Start."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Network — "/><Run Text="DNS, speed test, and rescue."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Security — "/><Run Text="Defender exclusions and hardening."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Tools — "/><Run Text="Diagnostics and utilities: specs, space analyzer, drive health, startup manager, Duplicate Finder, and more."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Dev — "/><Run Text="Validation suite for the app itself."/></TextBlock>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"><Run FontWeight="SemiBold" Text="Settings — "/><Run Text="Appearance and behavior."/></TextBlock>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
