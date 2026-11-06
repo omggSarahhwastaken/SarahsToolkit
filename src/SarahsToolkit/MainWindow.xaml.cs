@@ -3201,6 +3201,43 @@ namespace SarahsToolkit
             }
         }
 
+        private async void FreeMemoryDeep_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = (Button)sender;
+            btn.IsEnabled = false;
+            try
+            {
+                ulong before = MemoryService.GetAvailableBytes();
+                MemoryAvailLabel.Text = "Available: " + MemoryService.FormatGb(before) + " — freeing memory…";
+                SetStatus("Freeing memory (deep)...");
+                string err = "";
+                int trimmed = 0;
+                bool ok = await Task.Run(() => MemoryService.TryFreeMemoryDeep(out err, out trimmed));
+                ulong after = MemoryService.GetAvailableBytes();
+                MemoryAvailLabel.Text = "Available: " + MemoryService.FormatGb(after);
+                if (ok)
+                {
+                    double freedGb = Math.Max(0, (after - before) / 1073741824.0);
+                    string msg = "Freed " + freedGb.ToString("0.0") + " GB (" +
+                        MemoryService.FormatGb(before) + " → " + MemoryService.FormatGb(after) +
+                        " available, " + trimmed + " apps trimmed).";
+                    MemoryResultLabel.Text = msg;
+                    ToolsLog("Deep memory clean: " + msg);
+                    SetStatus("Memory freed.");
+                }
+                else
+                {
+                    MemoryResultLabel.Text = "Free up memory failed: " + err;
+                    ToolsLog("Deep memory clean FAILED: " + err);
+                    SetStatus("Memory clean failed.");
+                }
+            }
+            finally
+            {
+                btn.IsEnabled = true;
+            }
+        }
+
         private async void SpaceAnalyzer_Click(object sender, RoutedEventArgs e)
         {
             await RunToolAsync("Space analyzer", () => _diag.SpaceAnalyzerAsync());

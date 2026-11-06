@@ -907,6 +907,12 @@
                                     <TextBlock x:Name="MemoryResultLabel" Style="{StaticResource Muted12}"
                                                TextWrapping="Wrap"
                                                Text="Drops Windows' standby file cache — the leftovers it keeps 'just in case'. Your apps keep their memory; only cached file data is freed, the same stuff Windows discards on its own when RAM is actually needed."/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,6">
+                                        <Button Content="Free up memory (deep)" Width="170" Margin="0,0,12,0"
+                                                Click="FreeMemoryDeep_Click"/>
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource Muted12}" TextWrapping="Wrap"
+                                               Text="Frees a lot more: trims running apps' memory first, then flushes and purges the cache. System processes are never touched."/>
                                 </StackPanel>
                             </GroupBox>
                             <GroupBox Header="Performance tracker" Margin="0,0,0,10" Padding="10">
@@ -1017,6 +1023,10 @@
                                     Margin="0,4,0,0" Tag="Cleanup" Click="HelpJump_Click"/>
                             <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
                                        Text="Temporary files and caches on Cleanup — Quick Clean or Full Clean."/>
+                            <Button Content="Free up RAM" Width="190" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Tag="Tools" Click="HelpJump_Click"/>
+                            <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                       Text="Purge standby cache on Tools (safe), or Free up memory deep."/>
                             <Button Content="Find big or duplicate files" Width="190" HorizontalAlignment="Left"
                                     Margin="0,4,0,0" Tag="Tools" Click="HelpJump_Click"/>
                             <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"

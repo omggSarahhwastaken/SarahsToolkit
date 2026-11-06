@@ -1,15 +1,19 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace SarahsToolkit.Services
 {
     /// <summary>
-    /// Frees Windows' standby file cache (the "standby list") via
-    /// NtSetSystemInformation(SystemMemoryListInformation). This is the one
-    /// honest memory operation: it drops cached file data that Windows would
-    /// discard on its own the moment RAM is actually needed. App working sets
-    /// are untouched, so nothing stutters reloading. Requires admin, which the
-    /// app already has.
+    /// Frees memory two ways. The safe way drops only Windows' standby file
+    /// cache (the "standby list") via NtSetSystemInformation — cached file
+    /// data Windows would discard on its own when RAM is actually needed,
+    /// so apps keep their memory and nothing stutters reloading. The deep
+    /// way also trims running apps' working sets first (then flushes the
+    /// modified list and purges standby), which frees far more but makes
+    /// trimmed apps reload slowly when you switch back to them. Requires
+    /// admin, which the app already has.
     /// </summary>
     public class MemoryService
     {
@@ -59,7 +63,87 @@ namespace SarahsToolkit.Services
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool EmptyWorkingSet(IntPtr hProcess);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+
+        private static int RunMemoryListCommand(int command)
+        {
+            return NtSetSystemInformation(SystemMemoryListInformation,
+                ref command, sizeof(int));
+        }
+
+        // Processes whose working sets must never be trimmed: the kernel,
+        // session / login / security plumbing, and the window manager.
+        // Trimming one of these can freeze or crash the session.
+        private static readonly HashSet<string> ProtectedProcessNames =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "system", "idle", "registry", "memory compression",
+                "smss", "csrss", "wininit", "winlogon", "lsass",
+                "services", "svchost", "dwm", "fontdrvhost",
+            };
+
+        /// <summary>
+        /// Deep free-up, in the order every "free memory" tool uses:
+        /// trim each (non-critical) process's working set, flush the
+        /// modified list, then purge the standby list. Frees far more than
+        /// a standby-only purge, because it also moves live app memory to
+        /// the pagefile / standby — so trimmed apps reload slowly when you
+        /// switch back to them. Best used before launching a game, not
+        /// while one is running. Returns true if any step freed memory.
+        /// </summary>
+        public static bool TryFreeMemoryDeep(out string error, out int trimmedCount)
+        {
+            error = "";
+            trimmedCount = 0;
+            bool anySucceeded = false;
+            try
+            {
+                RtlAdjustPrivilege(SeProfileSingleProcessPrivilege, true, false, out _);
+                int ownId = Process.GetCurrentProcess().Id;
+
+                foreach (Process proc in Process.GetProcesses())
+                {
+                    try
+                    {
+                        if (proc.Id == ownId || proc.Id <= 4 || proc.HasExited)
+                            continue;
+                        string name = "";
+                        try { name = proc.ProcessName; } catch { continue; }
+                        if (ProtectedProcessNames.Contains(name))
+                            continue;
+                        if (EmptyWorkingSet(proc.Handle))
+                        {
+                            trimmedCount++;
+                            anySucceeded = true;
+                        }
+                    }
+                    catch { /* per-process failure: skip it, keep going */ }
+                    finally { try { proc.Dispose(); } catch { } }
+                }
+
+                int flushStatus = RunMemoryListCommand((int)MemoryListCommand.MemoryFlushModifiedList);
+                if (flushStatus == 0)
+                    anySucceeded = true;
+
+                int purgeStatus = RunMemoryListCommand((int)MemoryListCommand.MemoryPurgeStandbyList);
+                if (purgeStatus == 0)
+                    anySucceeded = true;
+                else if (!anySucceeded)
+                    error = "Windows refused the memory clean (status 0x" + purgeStatus.ToString("X8") + ").";
+
+                return anySucceeded;
+            }
+            catch (Exception ex)
+            {
+                if (!anySucceeded)
+                    error = ex.Message;
+                return anySucceeded;
+            }
+        }
 
         public static ulong GetAvailableBytes()
         {
