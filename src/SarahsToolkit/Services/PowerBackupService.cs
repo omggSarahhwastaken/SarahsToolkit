@@ -1,22 +1,32 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
-using System.Text.RegularExpressions;
+using Microsoft.Win32;
 
 namespace SarahsToolkit.Services
 {
     /// <summary>
     /// One recorded "before" snapshot for a power tweak, so reverting
     /// restores the user's own plan and values — not assumed Balanced
-    /// defaults (finding 5). One entry per tweak id, written on first
-    /// apply (never overwritten while present) and deleted after a
-    /// successful restore. Stored beside settings.json.
+    /// defaults. One entry per tweak id, written on first apply (never
+    /// overwritten while present) and deleted after a successful restore.
+    /// Stored beside settings.json.
     /// For a plan-scoped setting the scheme it was captured on is
     /// recorded too, so a restore writes the values back into that plan
     /// even if the active plan has since changed (e.g. a preset switched
     /// plans after the setting was applied).
+    ///
+    /// v2.7.6: the first version shelled out to powercfg.exe directly and
+    /// parsed a targeted "powercfg /q SCHEME_CURRENT sub setting" query.
+    /// On the user's PC that query returned no "Current AC/DC Power
+    /// Setting Index" lines, so the capture threw and the whole preset
+    /// apply failed ("Could not read the current power setting values").
+    /// Capture now reads the registry first, falls back to parsing the
+    /// full-scheme dump through the same PowerShell runner the check
+    /// scripts use, and — most importantly — a capture failure is no
+    /// longer fatal: TweakService.Apply swallows it and the tweak still
+    /// applies, with revert falling back to the static revert script.
     /// </summary>
     public class PowerBackup
     {
@@ -59,7 +69,11 @@ namespace SarahsToolkit.Services
             return LoadAll().ContainsKey(tweakId);
         }
 
-        /// <summary>Records the current plan/values if no backup exists yet.</summary>
+        /// <summary>
+        /// Records the current plan/values if no backup exists yet. Throws
+        /// when the values cannot be read at all — the caller treats that
+        /// as "no backup" and applies the tweak anyway (see TweakService).
+        /// </summary>
         public static void CaptureIfAbsent(string tweakId)
         {
             var all = LoadAll();
@@ -70,7 +84,8 @@ namespace SarahsToolkit.Services
             if (SettingGuids.TryGetValue(tweakId, out guids))
             {
                 int ac, dc;
-                GetSettingValues(guids.Item1, guids.Item2, out ac, out dc);
+                if (!TryReadRegistryValues(scheme, guids.Item1, guids.Item2, out ac, out dc))
+                    GetSettingValuesFromDump(guids.Item1, guids.Item2, out ac, out dc);
                 backup.AcValue = ac;
                 backup.DcValue = dc;
             }
@@ -79,9 +94,10 @@ namespace SarahsToolkit.Services
         }
 
         /// <summary>
-        /// Restores the recorded values. Returns true when restored (backup
-        /// cleared), false when there is no backup or the restore failed —
-        /// the caller then falls back to the tweak's static revert script.
+        /// Restores the recorded values via the PowerShell runner (the same
+        /// path the apply/revert scripts use). Returns true when restored
+        /// (backup cleared), false when there is no backup or the restore
+        /// failed — the caller then falls back to the static revert script.
         /// </summary>
         public static bool TryRestore(string tweakId)
         {
@@ -89,21 +105,32 @@ namespace SarahsToolkit.Services
             if (!LoadAll().TryGetValue(tweakId, out backup)) return false;
             try
             {
+                string script;
                 Tuple<string, string> guids;
                 if (SettingGuids.TryGetValue(tweakId, out guids))
                 {
                     if (backup.AcValue == null || backup.DcValue == null) return false;
-                    RunPowerCfg("/setacvalueindex " + backup.SchemeGuid + " " + guids.Item1 + " " + guids.Item2 + " " + backup.AcValue.Value);
-                    RunPowerCfg("/setdcvalueindex " + backup.SchemeGuid + " " + guids.Item1 + " " + guids.Item2 + " " + backup.DcValue.Value);
-                    // Re-apply the plan if it is the active one, so the
-                    // restored values take effect immediately.
-                    if (string.Equals(GetActiveSchemeGuid(), backup.SchemeGuid, StringComparison.OrdinalIgnoreCase))
-                        RunPowerCfg("/setactive " + backup.SchemeGuid);
+                    script =
+                        "$ErrorActionPreference = 'Stop'; " +
+                        "powercfg /setacvalueindex " + backup.SchemeGuid + " " + guids.Item1 + " " + guids.Item2 + " " + backup.AcValue.Value + "; " +
+                        "if ($LASTEXITCODE -ne 0) { throw 'powercfg failed restoring the plugged-in value.' }; " +
+                        "powercfg /setdcvalueindex " + backup.SchemeGuid + " " + guids.Item1 + " " + guids.Item2 + " " + backup.DcValue.Value + "; " +
+                        "if ($LASTEXITCODE -ne 0) { throw 'powercfg failed restoring the on-battery value.' }; " +
+                        // Re-apply the plan if it is the active one, so the
+                        // restored values take effect immediately.
+                        "if ((powercfg /getactivescheme) -match '" + backup.SchemeGuid + "') { " +
+                        "powercfg /setactive " + backup.SchemeGuid + "; " +
+                        "if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' } }";
                 }
                 else
                 {
-                    RunPowerCfg("/setactive " + backup.SchemeGuid);
+                    script =
+                        "$ErrorActionPreference = 'Stop'; " +
+                        "powercfg /setactive " + backup.SchemeGuid + "; " +
+                        "if ($LASTEXITCODE -ne 0) { throw 'Could not switch back to the previous power plan.' }";
                 }
+                var r = PowerShellRunner.RunScript(script, 1);
+                if (r.ExitCode != 0) return false;
             }
             catch
             {
@@ -144,52 +171,99 @@ namespace SarahsToolkit.Services
             else File.Move(tmp, BackupPath);
         }
 
+        // Active scheme: registry first, powercfg fallback.
         private static string GetActiveSchemeGuid()
         {
-            string output = RunPowerCfg("/getactivescheme");
-            var m = Regex.Match(output, @"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})");
-            if (!m.Success)
-                throw new InvalidOperationException("Could not read the active power plan.");
-            return m.Groups[1].Value;
-        }
-
-        private static void GetSettingValues(string subgroup, string setting, out int ac, out int dc)
-        {
-            string output = RunPowerCfg("/q SCHEME_CURRENT " + subgroup + " " + setting);
-            var acMatch = Regex.Match(output, @"Current AC Power Setting Index:\s*0x([0-9a-fA-F]+)");
-            var dcMatch = Regex.Match(output, @"Current DC Power Setting Index:\s*0x([0-9a-fA-F]+)");
-            if (!acMatch.Success || !dcMatch.Success)
-                throw new InvalidOperationException("Could not read the current power setting values.");
-            ac = Convert.ToInt32(acMatch.Groups[1].Value, 16);
-            dc = Convert.ToInt32(dcMatch.Groups[1].Value, 16);
-        }
-
-        private static string RunPowerCfg(string args)
-        {
-            var psi = new ProcessStartInfo
+            try
             {
-                FileName = "powercfg.exe",
-                Arguments = args,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-            using (var p = Process.Start(psi))
-            {
-                if (p == null)
-                    throw new InvalidOperationException("Could not start powercfg.exe.");
-                string output = p.StandardOutput.ReadToEnd();
-                string error = p.StandardError.ReadToEnd();
-                if (!p.WaitForExit(15000))
+                using (var key = Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes", false))
                 {
-                    try { p.Kill(); } catch { }
-                    throw new InvalidOperationException("powercfg.exe timed out.");
+                    object v = key == null ? null : key.GetValue("ActivePowerScheme");
+                    string guid = v == null ? null : v.ToString();
+                    if (!string.IsNullOrWhiteSpace(guid)) return guid.Trim();
                 }
-                if (p.ExitCode != 0)
-                    throw new InvalidOperationException("powercfg.exe failed: " + error.Trim());
-                return output;
             }
+            catch { /* fall through to powercfg */ }
+            string script =
+                "$m = [regex]::Match((powercfg /getactivescheme), '([0-9a-fA-F-]{36})'); " +
+                "if (-not $m.Success) { throw 'Could not read the active power plan.' }; " +
+                "Write-Output $m.Groups[1].Value";
+            var r = PowerShellRunner.RunScript(script, 1);
+            if (r.ExitCode != 0)
+                throw new InvalidOperationException("Could not read the active power plan.");
+            string outGuid = (r.Output ?? "").Trim();
+            if (outGuid.Length < 36)
+                throw new InvalidOperationException("Could not read the active power plan.");
+            return outGuid;
+        }
+
+        // Power plan settings are stored per scheme in the registry; a
+        // direct read avoids powercfg output parsing entirely. Returns
+        // false when the scheme never had an explicit value for this
+        // setting (the key is absent), so the caller can fall back to
+        // parsing the powercfg dump.
+        private static bool TryReadRegistryValues(string scheme, string subgroup, string setting, out int ac, out int dc)
+        {
+            ac = 0;
+            dc = 0;
+            try
+            {
+                using (var key = Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\" + scheme + @"\" + subgroup + @"\" + setting, false))
+                {
+                    if (key == null) return false;
+                    object a = key.GetValue("ACSettingIndex");
+                    object d = key.GetValue("DCSettingIndex");
+                    if (a == null || d == null) return false;
+                    ac = Convert.ToInt32(a);
+                    dc = Convert.ToInt32(d);
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Parses the full-scheme dump ("powercfg /q SCHEME_CURRENT") and
+        // reads the AC/DC lines from the section for this setting. The
+        // targeted query ("powercfg /q SCHEME_CURRENT sub setting")
+        // returned no index lines on the user's PC, so the dump is the
+        // fallback — the setting's section is found by its GUID.
+        private static void GetSettingValuesFromDump(string subgroup, string setting, out int ac, out int dc)
+        {
+            string script =
+                "$dump = powercfg /q SCHEME_CURRENT; " +
+                "$lines = $dump -split \"`r?`n\"; " +
+                "$in = $false; $ac = $null; $dc = $null; " +
+                "foreach ($l in $lines) { " +
+                "if ($l -match 'Power Setting GUID:\\s*" + setting + "') { $in = $true; continue }; " +
+                "if ($in -and $l -match 'Power Setting GUID:|Subgroup GUID:') { break }; " +
+                "if ($in) { " +
+                "$m = [regex]::Match($l, 'Current AC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); " +
+                "if ($m.Success) { $ac = [Convert]::ToInt32($m.Groups[1].Value, 16) }; " +
+                "$m = [regex]::Match($l, 'Current DC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); " +
+                "if ($m.Success) { $dc = [Convert]::ToInt32($m.Groups[1].Value, 16) } } }; " +
+                "if ($null -eq $ac -or $null -eq $dc) { throw 'Could not read the current power setting values.' }; " +
+                "Write-Output ('AC=' + $ac); Write-Output ('DC=' + $dc)";
+            var r = PowerShellRunner.RunScript(script, 1);
+            if (r.ExitCode != 0)
+                throw new InvalidOperationException("Could not read the current power setting values.");
+            ac = 0;
+            dc = 0;
+            bool gotAc = false, gotDc = false;
+            foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string t = line.Trim();
+                if (t.StartsWith("AC=", StringComparison.OrdinalIgnoreCase))
+                    gotAc = int.TryParse(t.Substring(3), out ac);
+                else if (t.StartsWith("DC=", StringComparison.OrdinalIgnoreCase))
+                    gotDc = int.TryParse(t.Substring(3), out dc);
+            }
+            if (!gotAc || !gotDc)
+                throw new InvalidOperationException("Could not read the current power setting values.");
         }
     }
 }

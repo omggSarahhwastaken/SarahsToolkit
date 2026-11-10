@@ -116,9 +116,16 @@ namespace SarahsToolkit.Services
         {
             InvalidateCache(tweak);
             // Record the user's own plan/values before the first apply, so
-            // reverting restores those instead of assumed defaults.
+            // reverting restores those instead of assumed defaults. This is
+            // best-effort: a backup makes revert exact, but a failed read
+            // must never block the tweak itself (v2.7.5 bug: a powercfg
+            // parse failure made the whole preset apply fail). Without a
+            // backup, revert falls back to the static revert script.
             if (PowerBackupService.IsPowerTweak(tweak.Id))
-                PowerBackupService.CaptureIfAbsent(tweak.Id);
+            {
+                try { PowerBackupService.CaptureIfAbsent(tweak.Id); }
+                catch { /* no backup — revert uses the static script */ }
+            }
             // Script first, registry second: if the script fails, no
             // registry change has been made yet (no half-applied tweak).
             RunCheckedScript(tweak.ApplyScript);
