@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -633,6 +634,50 @@ namespace SarahsToolkit
             ApplyStartWithWindows();
             _settings.Reset();
             ApplySettings();
+        }
+
+        private void SettingsExport_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new SaveFileDialog
+            {
+                Filter = "Settings file (*.json)|*.json",
+                FileName = "sarahs-toolkit-settings.json",
+                Title = "Export settings"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try
+            {
+                _settings.ExportTo(dlg.FileName);
+                SettingsBackupLabel.Text = "Settings exported to " + dlg.FileName + ".";
+                SetStatus("Settings exported.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not export settings:\n" + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void SettingsImport_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Filter = "Settings file (*.json)|*.json",
+                Title = "Import settings"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try
+            {
+                _settings.ImportFrom(dlg.FileName);
+                ApplySettings();
+                SettingsBackupLabel.Text = "Settings imported from " + dlg.FileName + ".";
+                SetStatus("Settings imported.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not import settings:\n" + ex.Message,
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         // ---------- Dashboard ----------
@@ -2960,6 +3005,11 @@ namespace SarahsToolkit
             await RunToolAsync("Specs check", () => _diag.SpecsCheckAsync());
         }
 
+        private async void DriverVersions_Click(object sender, RoutedEventArgs e)
+        {
+            await RunToolAsync("Driver versions", () => _diag.DriverCheckAsync());
+        }
+
         private void RefreshMemoryLabel()
         {
             try
@@ -3838,6 +3888,25 @@ namespace SarahsToolkit
                     bad + " invalid, " + dangling + " dangling tweak refs");
             }
             catch (Exception ex) { DevLogLine("FAIL: presets.json — " + ex.Message); }
+
+            try
+            {
+                // Settings export/import round-trip: serialize the live settings
+                // exactly as ExportTo does, read them back as ImportFrom does,
+                // and confirm nothing is lost.
+                var json = JsonSerializer.Serialize(_settings.Settings);
+                var back = JsonSerializer.Deserialize<AppSettings>(json);
+                bool ok = back != null &&
+                    Math.Abs(back.GuiScale - _settings.Settings.GuiScale) < 0.001 &&
+                    back.MinimizeToTray == _settings.Settings.MinimizeToTray &&
+                    back.CheckUpdatesOnLaunch == _settings.Settings.CheckUpdatesOnLaunch &&
+                    back.StartWithWindows == _settings.Settings.StartWithWindows &&
+                    back.DefaultPage == _settings.Settings.DefaultPage &&
+                    back.TempFahrenheit == _settings.Settings.TempFahrenheit &&
+                    back.LogPerformance == _settings.Settings.LogPerformance;
+                DevLogLine((ok ? "PASS" : "FAIL") + ": settings round-trip — export/import serialize check");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: settings round-trip — " + ex.Message); }
 
             try
             {

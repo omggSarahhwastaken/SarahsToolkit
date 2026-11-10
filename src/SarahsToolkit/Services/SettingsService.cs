@@ -113,6 +113,41 @@ namespace SarahsToolkit.Services
             Save();
         }
 
+        /// <summary>Writes the current settings to a user-chosen file (export).</summary>
+        public void ExportTo(string path)
+        {
+            Save(); // make sure the file on disk is current first
+            if (!File.Exists(SettingsPath))
+                throw new InvalidOperationException("No settings file exists yet to export.");
+            File.Copy(SettingsPath, path, true);
+        }
+
+        /// <summary>
+        /// Reads settings from a user-chosen file (import). The file must parse
+        /// as AppSettings; a bad file throws and the live settings are untouched.
+        /// On success the imported settings become live and are saved (with the
+        /// usual .bak of the previous config kept by Save()).
+        /// </summary>
+        public void ImportFrom(string path)
+        {
+            AppSettings imported;
+            try
+            {
+                imported = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path));
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("That file could not be read as settings: " + ex.Message);
+            }
+            if (imported == null)
+                throw new InvalidOperationException("That file is not a Sarah's Toolkit settings file.");
+            Settings = imported;
+            _brokenConfig = false;
+            LoadedOk = true;
+            HadFile = true;
+            Save();
+        }
+
         private void Sanitize()
         {
             var s = Settings;

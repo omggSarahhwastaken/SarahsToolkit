@@ -37,6 +37,35 @@ namespace SarahsToolkit.Services
             return Task.Run(() => PowerShellRunner.RunScript(script, 2));
         }
 
+        public Task<PowerShellResult> DriverCheckAsync()
+        {
+            // Lists the drivers that matter for gaming — GPU, network, audio,
+            // Bluetooth and chipset — with version and date, flagging anything
+            // over 6 months old. It never installs anything and never claims
+            // to know the vendor's latest version: there is no reliable local
+            // source for that, so it points at the vendor download pages.
+            string script =
+                "$now = Get-Date; " +
+                "function Show-Driver($label, $ver, $dateStr) { " +
+                "$d = $null; try { $d = [System.Management.ManagementDateTimeConverter]::ToDateTime($dateStr) } catch { }; " +
+                "$age = ''; if ($d) { $days = [math]::Floor(($now - $d).TotalDays); $age = ' | ' + $d.ToString('yyyy-MM-dd') + ' (' + $days + ' days old)'; if ($days -gt 180) { $age += ' — OLD, check for an update' } }; " +
+                "Write-Output ($label + ' | v' + $ver + $age) }; " +
+                "$vc = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Virtual|Basic Display|Remote' }; " +
+                "foreach ($g in $vc) { Show-Driver ('GPU: ' + $g.Name) $g.DriverVersion $g.DriverDate }; " +
+                "$drivers = Get-CimInstance Win32_PnPSignedDriver -ErrorAction SilentlyContinue | Where-Object { $_.DriverVersion }; " +
+                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'Net' -and $_.DeviceName -notmatch 'WAN Miniport|Virtual|Hyper-V' })) { Show-Driver ('Network: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate }; " +
+                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'Media' -and $_.DeviceName -notmatch 'Virtual' })) { Show-Driver ('Audio: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate }; " +
+                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'Bluetooth' })) { Show-Driver ('Bluetooth: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate }; " +
+                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'System' -and $_.DeviceName -match 'Chipset|SMBus|LPC|PCI Express Root|Host Bridge' })) { Show-Driver ('Chipset: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate }; " +
+                "Write-Output ''; " +
+                "Write-Output 'Download the latest drivers from your vendor (Toolkit never installs drivers itself):'; " +
+                "Write-Output '  NVIDIA: https://www.nvidia.com/drivers'; " +
+                "Write-Output '  AMD: https://www.amd.com/support/download/drivers.html'; " +
+                "Write-Output '  Intel: https://www.intel.com/content/www/us/en/download/detect.html'; " +
+                "Write-Output '  Realtek audio/network: https://www.realtek.com/en/downloads'";
+            return Task.Run(() => PowerShellRunner.RunScript(script, 2));
+        }
+
         public Task<PowerShellResult> SpaceAnalyzerAsync()
         {
             string script =

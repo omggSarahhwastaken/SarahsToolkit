@@ -859,6 +859,7 @@
                                         <Button Content="SFC scan" Width="110" Margin="0,0,8,8" Click="SfcScan_Click"/>
                                         <Button Content="Startup manager" Width="120" Margin="0,0,8,8" Click="StartupManager_Click"/>
                                         <Button Content="Shader sweep" Width="110" Margin="0,0,8,8" Click="ShaderSweep_Click"/>
+                                        <Button Content="Driver versions" Width="120" Margin="0,0,8,8" Click="DriverVersions_Click"/>
                                     </WrapPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                         <TextBlock Text="Disable startup entries (e.g. 0,2,3):" VerticalAlignment="Center"
@@ -1126,8 +1127,12 @@
                                     <StackPanel Orientation="Horizontal">
                                         <Button Content="Open settings folder" Margin="0,0,8,0"
                                                 Click="SettingsOpenFolder_Click"/>
-                                        <Button Content="Reset all settings" Click="SettingsReset_Click"/>
+                                        <Button Content="Reset all settings" Margin="0,0,8,0" Click="SettingsReset_Click"/>
+                                        <Button Content="Export settings…" Margin="0,0,8,0" Click="SettingsExport_Click"/>
+                                        <Button Content="Import settings…" Click="SettingsImport_Click"/>
                                     </StackPanel>
+                                    <TextBlock x:Name="SettingsBackupLabel" Margin="0,8,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                               Text="Export saves your settings to a file; Import loads settings back from one, so an update or reinstall never loses them."/>
                                     <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Style="{StaticResource Muted12}"
                                                Text="Settings live in a single settings.json file. The only log is the performance tracker log, capped at 150 MB."/>
                                 </StackPanel>
