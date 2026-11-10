@@ -26,6 +26,12 @@ namespace SarahsToolkit.Services
     {
         public static PowerShellResult RunScript(string scriptBody, int timeoutMinutes = 10)
         {
+            return RunScript(scriptBody, TimeSpan.FromMinutes(timeoutMinutes));
+        }
+
+        /// <summary>Same runner with a sub-minute timeout (state reads).</summary>
+        public static PowerShellResult RunScript(string scriptBody, TimeSpan timeout)
+        {
             string tempFile = Path.Combine(Path.GetTempPath(),
                 "sarahstoolkit_" + Guid.NewGuid().ToString("N") + ".ps1");
             try
@@ -52,7 +58,8 @@ namespace SarahsToolkit.Services
                     p.BeginOutputReadLine();
                     p.BeginErrorReadLine();
 
-                    bool exited = p.WaitForExit(timeoutMinutes * 60 * 1000);
+                    int waitMs = (int)Math.Min(Math.Max(timeout.TotalMilliseconds, 1000), int.MaxValue);
+                    bool exited = p.WaitForExit(waitMs);
                     if (!exited)
                     {
                         try { p.Kill(); } catch { }

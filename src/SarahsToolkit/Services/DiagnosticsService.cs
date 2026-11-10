@@ -40,23 +40,29 @@ namespace SarahsToolkit.Services
         public Task<PowerShellResult> DriverCheckAsync()
         {
             // Lists the drivers that matter for gaming — GPU, network, audio,
-            // Bluetooth and chipset — with version and date, flagging anything
-            // over 6 months old. It never installs anything and never claims
-            // to know the vendor's latest version: there is no reliable local
-            // source for that, so it points at the vendor download pages.
+            // Bluetooth and chipset — with version and date. The >6-month
+            // "OLD" flag applies only to GPU and network drivers, where the
+            // date actually tracks new releases; chipset/OEM drivers keep
+            // the same date for years by design, so flagging them would send
+            // the user chasing updates that don't exist. It never installs
+            // anything and never claims to know the vendor's latest version:
+            // there is no reliable local source for that, so it points at
+            // the vendor download pages.
             string script =
                 "$now = Get-Date; " +
-                "function Show-Driver($label, $ver, $dateStr) { " +
+                "function Show-Driver($label, $ver, $dateStr, $flagOld, $note) { " +
                 "$d = $null; try { $d = [System.Management.ManagementDateTimeConverter]::ToDateTime($dateStr) } catch { }; " +
-                "$age = ''; if ($d) { $days = [math]::Floor(($now - $d).TotalDays); $age = ' | ' + $d.ToString('yyyy-MM-dd') + ' (' + $days + ' days old)'; if ($days -gt 180) { $age += ' — OLD, check for an update' } }; " +
+                "$age = ''; if ($d) { $days = [math]::Floor(($now - $d).TotalDays); $age = ' | ' + $d.ToString('yyyy-MM-dd') + ' (' + $days + ' days old)'; if ($flagOld -and $days -gt 180) { $age += ' — OLD, check for an update' } }; " +
+                "if ($note) { $age += ' — ' + $note }; " +
                 "Write-Output ($label + ' | v' + $ver + $age) }; " +
                 "$vc = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Virtual|Basic Display|Remote' }; " +
-                "foreach ($g in $vc) { Show-Driver ('GPU: ' + $g.Name) $g.DriverVersion $g.DriverDate }; " +
+                "if (@($vc).Count -eq 0) { Write-Output 'GPU: no driver found (Microsoft Basic Display Adapter only) — install your GPU driver' }; " +
+                "foreach ($g in $vc) { Show-Driver ('GPU: ' + $g.Name) $g.DriverVersion $g.DriverDate $true '' }; " +
                 "$drivers = Get-CimInstance Win32_PnPSignedDriver -ErrorAction SilentlyContinue | Where-Object { $_.DriverVersion }; " +
-                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'Net' -and $_.DeviceName -notmatch 'WAN Miniport|Virtual|Hyper-V' })) { Show-Driver ('Network: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate }; " +
-                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'Media' -and $_.DeviceName -notmatch 'Virtual' })) { Show-Driver ('Audio: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate }; " +
-                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'Bluetooth' })) { Show-Driver ('Bluetooth: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate }; " +
-                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'System' -and $_.DeviceName -match 'Chipset|SMBus|LPC|PCI Express Root|Host Bridge' })) { Show-Driver ('Chipset: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate }; " +
+                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'Net' -and $_.DeviceName -notmatch 'WAN Miniport|Virtual|Hyper-V' })) { Show-Driver ('Network: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate $true '' }; " +
+                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'Media' -and $_.DeviceName -notmatch 'Virtual' })) { Show-Driver ('Audio: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate $false '' }; " +
+                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'Bluetooth' })) { Show-Driver ('Bluetooth: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate $false '' }; " +
+                "foreach ($d in ($drivers | Where-Object { $_.DeviceClass -eq 'System' -and $_.DeviceName -match 'Chipset|SMBus|LPC|PCI Express Root|Host Bridge' })) { Show-Driver ('Chipset: ' + $d.DeviceName) $d.DriverVersion $d.DriverDate $false 'OEM driver — check your laptop vendor''s support page for updates' }; " +
                 "Write-Output ''; " +
                 "Write-Output 'Download the latest drivers from your vendor (Toolkit never installs drivers itself):'; " +
                 "Write-Output '  NVIDIA: https://www.nvidia.com/drivers'; " +

@@ -36,6 +36,14 @@ namespace SarahsToolkit.Services
             BackupPath = Path.Combine(FolderPath, "settings.json.bak");
         }
 
+        /// <summary>Same service pointed at an explicit folder (Dev round-trip check).</summary>
+        public SettingsService(string folderPath)
+        {
+            FolderPath = folderPath;
+            SettingsPath = Path.Combine(FolderPath, "settings.json");
+            BackupPath = Path.Combine(FolderPath, "settings.json.bak");
+        }
+
         public void Load()
         {
             LoadedOk = false;
@@ -116,6 +124,11 @@ namespace SarahsToolkit.Services
         /// <summary>Writes the current settings to a user-chosen file (export).</summary>
         public void ExportTo(string path)
         {
+            // A broken config has nothing safe to export: Save() refuses to
+            // write while _brokenConfig is set, so copying the on-disk file
+            // would hand the user the corrupt file they are trying to escape.
+            if (_brokenConfig)
+                throw new InvalidOperationException("Settings are unreadable (the settings file is corrupt), so there is nothing safe to export.");
             Save(); // make sure the file on disk is current first
             if (!File.Exists(SettingsPath))
                 throw new InvalidOperationException("No settings file exists yet to export.");
@@ -131,9 +144,11 @@ namespace SarahsToolkit.Services
         public void ImportFrom(string path)
         {
             AppSettings imported;
+            string raw;
             try
             {
-                imported = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path));
+                raw = File.ReadAllText(path);
+                imported = JsonSerializer.Deserialize<AppSettings>(raw);
             }
             catch (Exception ex)
             {
@@ -141,11 +156,48 @@ namespace SarahsToolkit.Services
             }
             if (imported == null)
                 throw new InvalidOperationException("That file is not a Sarah's Toolkit settings file.");
+            // A JSON object with no settings fields at all ({}, a version
+            // manifest, a tweaks file) deserializes to all-defaults — and
+            // importing that would silently wipe the user's real config.
+            // Require at least one recognised settings property to be present.
+            if (!LooksLikeSettingsFile(raw))
+                throw new InvalidOperationException("That file doesn't look like a Sarah's Toolkit settings export — it has none of the settings fields.");
             Settings = imported;
             _brokenConfig = false;
             LoadedOk = true;
             HadFile = true;
             Save();
+        }
+
+        private static readonly string[] SettingsFieldNames =
+        {
+            "GuiScale", "MinimizeToTray", "CheckUpdatesOnLaunch", "StartWithWindows",
+            "DefaultPage", "LastPage", "TempFahrenheit", "LogPerformance", "IdleTempC",
+            "BootBaselinePreset", "BootBaselineAvgSec", "BootBaselineBootId", "BootBaselineDate"
+        };
+
+        private static bool LooksLikeSettingsFile(string raw)
+        {
+            try
+            {
+                using (var doc = JsonDocument.Parse(raw))
+                {
+                    if (doc.RootElement.ValueKind != JsonValueKind.Object) return false;
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        foreach (var name in SettingsFieldNames)
+                        {
+                            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
+                                return true;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+            return false;
         }
 
         private void Sanitize()

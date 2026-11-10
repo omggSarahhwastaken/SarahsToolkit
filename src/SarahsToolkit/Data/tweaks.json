@@ -1482,7 +1482,7 @@
     "applyScript": "$ErrorActionPreference = 'Stop'; $list = powercfg /list; $m = [regex]::Match($list, 'GUID:\\s*([0-9a-fA-F-]{36})\\s+\\(Ultimate Performance\\)'); if ($m.Success) { $g = $m.Groups[1].Value } else { $o = powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61; if ($LASTEXITCODE -ne 0) { throw 'Could not create the Ultimate Performance plan.' }; $m2 = [regex]::Match($o, '([0-9a-fA-F-]{36})'); if (-not $m2.Success) { throw 'Could not read the new plan GUID.' }; $g = $m2.Groups[1].Value }; powercfg /setactive $g; if ($LASTEXITCODE -ne 0) { throw 'Could not activate the Ultimate Performance plan.' }",
     "category": "Power",
     "checkScript": "if ((powercfg /getactivescheme) -match 'Ultimate Performance') { exit 0 } else { exit 1 }",
-    "description": "Switches to the hidden Ultimate Performance plan: no frequency scaling, maximum throughput. Reverting switches back to Balanced.",
+    "description": "Switches to the hidden Ultimate Performance plan: no frequency scaling, maximum throughput. Reverting switches back to the plan you had before.",
     "id": "power.ultimatePerf",
     "name": "Ultimate Performance power plan",
     "requiresReboot": false,
@@ -1502,7 +1502,7 @@
     "applyScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }",
     "category": "Power",
     "checkScript": "$out = powercfg /q SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5; $ac = [regex]::Match($out, 'Current AC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); $dc = [regex]::Match($out, 'Current DC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); if (-not $ac.Success -or -not $dc.Success) { exit 1 }; if ([Convert]::ToInt32($ac.Groups[1].Value, 16) -eq 0 -and [Convert]::ToInt32($dc.Groups[1].Value, 16) -eq 0) { exit 0 } else { exit 1 }",
-    "description": "Stops the GPU and NVMe drive dropping into low-power PCIe states that add latency. Reverting restores Moderate on plugged-in power and Maximum on battery.",
+    "description": "Turns off PCIe power saving (ASPM) so the GPU and SSDs never throttle link speed. Reverting restores the values you had before.",
     "id": "power.pcieAspm",
     "name": "Disable PCIe Link State Power Management",
     "requiresReboot": false,
@@ -1512,7 +1512,7 @@
     "applyScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }",
     "category": "Power",
     "checkScript": "$out = powercfg /q SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226; $ac = [regex]::Match($out, 'Current AC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); $dc = [regex]::Match($out, 'Current DC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); if (-not $ac.Success -or -not $dc.Success) { exit 1 }; if ([Convert]::ToInt32($ac.Groups[1].Value, 16) -eq 0 -and [Convert]::ToInt32($dc.Groups[1].Value, 16) -eq 0) { exit 0 } else { exit 1 }",
-    "description": "Stops Windows powering down idle USB ports. Fixes mice, headsets and drives disconnecting randomly; re-enabling is the Windows default.",
+    "description": "Disables USB selective suspend so USB devices never sleep mid-game. Reverting restores the setting you had before.",
     "id": "power.usbSuspend",
     "name": "Disable USB selective suspend",
     "requiresReboot": false,
@@ -1522,7 +1522,7 @@
     "applyScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }",
     "category": "Power",
     "checkScript": "$out = powercfg /q SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a; $ac = [regex]::Match($out, 'Current AC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); $dc = [regex]::Match($out, 'Current DC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); if (-not $ac.Success -or -not $dc.Success) { exit 1 }; if ([Convert]::ToInt32($ac.Groups[1].Value, 16) -eq 0 -and [Convert]::ToInt32($dc.Groups[1].Value, 16) -eq 0) { exit 0 } else { exit 1 }",
-    "description": "Sets the wireless adapter power saving to Maximum Performance for a steadier connection. Reverting restores Medium power saving.",
+    "description": "Sets Wi-Fi adapter to maximum performance instead of power saving. Reverting restores the level you had before.",
     "id": "power.wifiPerf",
     "name": "Wi-Fi maximum performance",
     "requiresReboot": false,
@@ -1571,14 +1571,14 @@
     ]
   },
   {
-    "applyScript": "$ErrorActionPreference = 'Stop'; $adapters = Get-NetAdapter -Physical | Where-Object { $_.Status -ne 'Disabled' }; if (-not $adapters) { throw 'No physical network adapters found.' }; foreach ($a in $adapters) { $path = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}\\' + ('{0:D4}' -f $a.DeviceID); Set-ItemProperty -Path $path -Name 'PnPCapabilities' -Value 24 -Type DWord }",
+    "applyScript": "$ErrorActionPreference = 'Stop'\nforeach ($a in Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' }) {\n$base = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}'\n$id = '{' + $a.InterfaceGuid.ToString() + '}'\n$key = Get-ChildItem $base -ErrorAction SilentlyContinue | Where-Object { (Get-ItemProperty -Path $_.PSPath -Name 'NetCfgInstanceId' -ErrorAction SilentlyContinue).NetCfgInstanceId -eq $id } | Select-Object -First 1\nif (-not $key) { throw ('Could not find the registry key for adapter ' + $a.Name) }\n$path = $key.PSPath\n  New-ItemProperty -Path $path -Name 'PnPCapabilities' -Value 24 -PropertyType DWord -Force | Out-Null\n}\nexit 0\n",
     "category": "Network",
-    "checkScript": "$adapters = Get-NetAdapter -Physical | Where-Object { $_.Status -ne 'Disabled' }; if (-not $adapters) { exit 1 }; foreach ($a in $adapters) { $path = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}\\' + ('{0:D4}' -f $a.DeviceID); if ((Get-ItemProperty -Path $path -Name 'PnPCapabilities' -ErrorAction SilentlyContinue).PnPCapabilities -ne 24) { exit 1 } }; exit 0",
+    "checkScript": "$ErrorActionPreference = 'Stop'\n$adapters = Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' }\nif (-not $adapters) { exit 1 }\nforeach ($a in $adapters) {\n$base = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}'\n$id = '{' + $a.InterfaceGuid.ToString() + '}'\n$key = Get-ChildItem $base -ErrorAction SilentlyContinue | Where-Object { (Get-ItemProperty -Path $_.PSPath -Name 'NetCfgInstanceId' -ErrorAction SilentlyContinue).NetCfgInstanceId -eq $id } | Select-Object -First 1\nif (-not $key) { throw ('Could not find the registry key for adapter ' + $a.Name) }\n$path = $key.PSPath\n  $v = Get-ItemProperty -Path $path -Name 'PnPCapabilities' -ErrorAction SilentlyContinue\n  if (-not $v -or $v.PnPCapabilities -ne 24) { exit 1 }\n}\nexit 0\n",
     "description": "Stops Windows powering down your network adapters to save energy. Fixes random disconnects; reverting removes the setting so Windows manages it again.",
     "id": "net.adapterPowerSaving",
     "name": "Disable network adapter power saving",
     "requiresReboot": true,
-    "revertScript": "$ErrorActionPreference = 'Stop'; $adapters = Get-NetAdapter -Physical; foreach ($a in $adapters) { $path = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}\\' + ('{0:D4}' -f $a.DeviceID); Remove-ItemProperty -Path $path -Name 'PnPCapabilities' -ErrorAction SilentlyContinue }"
+    "revertScript": "$ErrorActionPreference = 'Stop'\nforeach ($a in Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' }) {\n$base = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}'\n$id = '{' + $a.InterfaceGuid.ToString() + '}'\n$key = Get-ChildItem $base -ErrorAction SilentlyContinue | Where-Object { (Get-ItemProperty -Path $_.PSPath -Name 'NetCfgInstanceId' -ErrorAction SilentlyContinue).NetCfgInstanceId -eq $id } | Select-Object -First 1\nif (-not $key) { throw ('Could not find the registry key for adapter ' + $a.Name) }\n$path = $key.PSPath\n  Remove-ItemProperty -Path $path -Name 'PnPCapabilities' -ErrorAction SilentlyContinue\n}\nexit 0\n"
   },
   {
     "apply": [
@@ -1599,11 +1599,11 @@
     ],
     "category": "Network",
     "check": {
-      "expected": "86400",
+      "expected": "5",
       "hive": "HKLM",
       "keyPath": "SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
       "kind": "DWord",
-      "valueName": "MaxCacheTtl"
+      "valueName": "MaxNegativeCacheTtl"
     },
     "description": "Shorter DNS timeout and a bigger DNS cache for faster lookups. Restart to take effect.",
     "id": "net.dnsPriority",
@@ -1655,38 +1655,6 @@
         "keyPath": "SYSTEM\\CurrentControlSet\\Control\\PriorityControl",
         "kind": "DWord",
         "valueName": "Win32PrioritySeparation"
-      }
-    ]
-  },
-  {
-    "apply": [
-      {
-        "data": "10",
-        "hive": "HKCU",
-        "keyPath": "Control Panel\\Mouse",
-        "kind": "String",
-        "valueName": "MouseSensitivity"
-      }
-    ],
-    "category": "Gaming",
-    "check": {
-      "expected": "10",
-      "hive": "HKCU",
-      "keyPath": "Control Panel\\Mouse",
-      "kind": "String",
-      "valueName": "MouseSensitivity"
-    },
-    "description": "Sets pointer speed to the neutral 6/11 position where Windows applies no scaling. Pairs with Disable enhance pointer precision for true 1:1 mouse movement.",
-    "id": "gaming.linearMouse",
-    "name": "Linear mouse input (6/11)",
-    "requiresReboot": false,
-    "revert": [
-      {
-        "data": "10",
-        "hive": "HKCU",
-        "keyPath": "Control Panel\\Mouse",
-        "kind": "String",
-        "valueName": "MouseSensitivity"
       }
     ]
   },

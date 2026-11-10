@@ -11,6 +11,26 @@ namespace SarahsToolkit.Services
     {
         private readonly string _jsonPath;
 
+        // State cache (finding 2): every script-tweak check launches a
+        // powershell.exe. Without a cache, one Optimize build + one
+        // preset-ratings refresh launched ~29 of them on the UI thread.
+        // Entries live 10 s — long enough that a single refresh reads
+        // each tweak once, short enough that the toggles never show
+        // visibly stale state. Applies/reverts invalidate (below).
+        private class CachedState
+        {
+            public TweakState State { get; set; }
+            public string Error { get; set; }
+            public DateTime At { get; set; }
+        }
+
+        private readonly Dictionary<string, CachedState> _stateCache =
+            new Dictionary<string, CachedState>(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(10);
+        // State reads get a short timeout: a hung check must not freeze
+        // the UI for a minute per tweak.
+        private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(15);
+
         public TweakService()
         {
             _jsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "tweaks.json");
@@ -25,66 +45,121 @@ namespace SarahsToolkit.Services
 
         public TweakState GetState(TweakDefinition tweak)
         {
+            CachedState cached;
+            if (_stateCache.TryGetValue(tweak.Id, out cached) &&
+                DateTime.UtcNow - cached.At < CacheTtl)
+                return cached.State;
+
+            TweakState state;
+            string error = "";
             try
             {
                 if (!string.IsNullOrWhiteSpace(tweak.CheckScript))
                 {
-                    var r = RunScript(tweak.CheckScript);
-                    if (r.ExitCode == -1) return TweakState.Unknown;
-                    return r.ExitCode == 0 ? TweakState.Applied : TweakState.NotApplied;
+                    var r = RunCheckScript(tweak.CheckScript);
+                    // -1 (runner failure) and 99 (timeout) both mean the
+                    // state could not be read — Unknown, not NotApplied.
+                    if (r.ExitCode == -1 || r.ExitCode == 99)
+                    {
+                        state = TweakState.Unknown;
+                        error = r.Error;
+                    }
+                    else
+                    {
+                        state = r.ExitCode == 0 ? TweakState.Applied : TweakState.NotApplied;
+                    }
                 }
-                var c = tweak.Check;
-                if (c == null) return TweakState.Unknown;
-                string actual = ReadValue(c.Hive, c.KeyPath, c.ValueName, c.Kind);
-                if (actual == null) return TweakState.NotApplied;
-                return string.Equals(actual, c.Expected, StringComparison.OrdinalIgnoreCase)
-                    ? TweakState.Applied
-                    : TweakState.NotApplied;
+                else
+                {
+                    var c = tweak.Check;
+                    if (c == null)
+                    {
+                        state = TweakState.Unknown;
+                        error = "no check defined for this tweak";
+                    }
+                    else
+                    {
+                        string actual = ReadValue(c.Hive, c.KeyPath, c.ValueName, c.Kind);
+                        if (actual == null) state = TweakState.NotApplied;
+                        else state = string.Equals(actual, c.Expected, StringComparison.OrdinalIgnoreCase)
+                            ? TweakState.Applied
+                            : TweakState.NotApplied;
+                    }
+                }
             }
-            catch
+            catch (Exception ex)
             {
-                return TweakState.Unknown;
+                state = TweakState.Unknown;
+                error = ex.GetType().Name + ": " + ex.Message;
             }
+            _stateCache[tweak.Id] = new CachedState { State = state, Error = error, At = DateTime.UtcNow };
+            return state;
         }
 
         /// <summary>Returns the underlying read error when GetState reports Unknown, else "".</summary>
         public string GetStateError(TweakDefinition tweak)
         {
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(tweak.CheckScript))
-                {
-                    var r = RunScript(tweak.CheckScript);
-                    return r.ExitCode == -1 ? "check script failed: " + r.Error : "";
-                }
-                var c = tweak.Check;
-                if (c == null) return "no check defined for this tweak";
-                ReadValue(c.Hive, c.KeyPath, c.ValueName, c.Kind);
-                return "";
-            }
-            catch (Exception ex)
-            {
-                return ex.GetType().Name + ": " + ex.Message;
-            }
+            // GetState already ran the check and cached its error, so this
+            // is a cache hit in the normal path — it must not launch a
+            // second PowerShell just to explain an Unknown state.
+            CachedState cached;
+            if (_stateCache.TryGetValue(tweak.Id, out cached) &&
+                DateTime.UtcNow - cached.At < CacheTtl)
+                return cached.Error ?? "";
+            GetState(tweak);
+            if (_stateCache.TryGetValue(tweak.Id, out cached))
+                return cached.Error ?? "";
+            return "";
         }
 
         public void Apply(TweakDefinition tweak)
         {
-            foreach (var op in tweak.Apply) WriteOperation(op);
+            InvalidateCache(tweak);
+            // Record the user's own plan/values before the first apply, so
+            // reverting restores those instead of assumed defaults.
+            if (PowerBackupService.IsPowerTweak(tweak.Id))
+                PowerBackupService.CaptureIfAbsent(tweak.Id);
+            // Script first, registry second: if the script fails, no
+            // registry change has been made yet (no half-applied tweak).
             RunCheckedScript(tweak.ApplyScript);
+            foreach (var op in tweak.Apply) WriteOperation(op);
         }
 
         public void Revert(TweakDefinition tweak)
         {
+            InvalidateCache(tweak);
+            // A recorded backup restores the user's own plan/values. Without
+            // one, fall back to the tweak's static revert script.
+            bool restored = PowerBackupService.IsPowerTweak(tweak.Id) &&
+                PowerBackupService.TryRestore(tweak.Id);
+            if (!restored)
+            {
+                RunCheckedScript(tweak.RevertScript);
+                if (PowerBackupService.IsPowerTweak(tweak.Id))
+                    PowerBackupService.Clear(tweak.Id);
+            }
             foreach (var op in tweak.Revert) WriteOperation(op);
-            RunCheckedScript(tweak.RevertScript);
+        }
+
+        private void InvalidateCache(TweakDefinition tweak)
+        {
+            // A power-tweak apply/revert can change what the other power
+            // checks report (the active plan moved), so clear everything.
+            if (PowerBackupService.IsPowerTweak(tweak.Id))
+                _stateCache.Clear();
+            else
+                _stateCache.Remove(tweak.Id);
         }
 
         // Scripts run through the temp-file runner (file deleted afterwards).
-        // A 1-minute cap keeps toggle reads from hanging the UI.
         private static PowerShellResult RunScript(string script)
         {
             return PowerShellRunner.RunScript(script, 1);
+        }
+
+        private static PowerShellResult RunCheckScript(string script)
+        {
+            return PowerShellRunner.RunScript(script, CheckTimeout);
         }
 
         private static void RunCheckedScript(string script)

@@ -1870,13 +1870,19 @@ namespace SarahsToolkit
             if (confirm != MessageBoxResult.Yes) return;
 
             int applied = 0, reverted = 0, failed = 0;
-            foreach (string id in preset.Tweaks ?? Enumerable.Empty<string>())
+            var errors = new List<string>();
+            // Plan-scoped power settings are written to the active plan, so
+            // the plan switch must run before any of them — regardless of
+            // the order in presets.json (finding 1).
+            var applyIds = (preset.Tweaks ?? Enumerable.Empty<string>())
+                .OrderBy(id => string.Equals(id, "power.ultimatePerf", StringComparison.OrdinalIgnoreCase) ? 0 : 1);
+            foreach (string id in applyIds)
             {
                 var tw = _tweakDefs.FirstOrDefault(t => t.Id == id);
                 if (tw == null) continue;
                 if (_tweaks.GetState(tw) != TweakState.NotApplied) continue;
                 try { _tweaks.Apply(tw); applied++; }
-                catch { failed++; }
+                catch (Exception ex) { failed++; errors.Add(tw.Name + ": " + ex.Message); }
             }
             foreach (string id in PresetService.ResolveRevertIds(preset, _tweakDefs))
             {
@@ -1884,7 +1890,7 @@ namespace SarahsToolkit
                 if (tw == null) continue;
                 if (_tweaks.GetState(tw) != TweakState.Applied) continue;
                 try { _tweaks.Revert(tw); reverted++; }
-                catch { failed++; }
+                catch (Exception ex) { failed++; errors.Add(tw.Name + ": " + ex.Message); }
             }
             var changedParts = new List<string>();
             if (applied > 0) changedParts.Add(applied + " applied");
@@ -1893,6 +1899,9 @@ namespace SarahsToolkit
             SetStatus(preset.Name + " preset: " + changed +
                 (failed > 0 ? ", " + failed + " failed." : ".") +
                 (needsReboot ? " Restart Windows for full effect." : ""));
+            if (failed > 0)
+                MessageBox.Show("Some preset changes failed:\n" + string.Join("\n", errors),
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             // Re-sync the Optimize/Customize/Security toggles and the ratings.
             BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance", "Network", "Power" });
             BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
@@ -3891,20 +3900,69 @@ namespace SarahsToolkit
 
             try
             {
-                // Settings export/import round-trip: serialize the live settings
-                // exactly as ExportTo does, read them back as ImportFrom does,
-                // and confirm nothing is lost.
-                var json = JsonSerializer.Serialize(_settings.Settings);
-                var back = JsonSerializer.Deserialize<AppSettings>(json);
-                bool ok = back != null &&
-                    Math.Abs(back.GuiScale - _settings.Settings.GuiScale) < 0.001 &&
-                    back.MinimizeToTray == _settings.Settings.MinimizeToTray &&
-                    back.CheckUpdatesOnLaunch == _settings.Settings.CheckUpdatesOnLaunch &&
-                    back.StartWithWindows == _settings.Settings.StartWithWindows &&
-                    back.DefaultPage == _settings.Settings.DefaultPage &&
-                    back.TempFahrenheit == _settings.Settings.TempFahrenheit &&
-                    back.LogPerformance == _settings.Settings.LogPerformance;
-                DevLogLine((ok ? "PASS" : "FAIL") + ": settings round-trip — export/import serialize check");
+                // A preset that switches power plans must do so before any
+                // plan-scoped setting is written (finding 1): on apply the
+                // switch goes first, on revert it goes last. For RevertAll
+                // presets the order comes from tweaks.json, so that file
+                // must list the plan switch before the plan-scoped tweaks.
+                var presets = _presets.LoadPresets();
+                string[] planScoped = { "power.coreParking", "power.pcieAspm", "power.usbSuspend", "power.wifiPerf" };
+                int violations = 0;
+                foreach (var p in presets)
+                {
+                    var tweaks = p.Tweaks ?? new List<string>();
+                    int sw = tweaks.IndexOf("power.ultimatePerf");
+                    if (sw >= 0)
+                        foreach (var id in planScoped)
+                        {
+                            int i = tweaks.IndexOf(id);
+                            if (i >= 0 && i < sw) violations++;
+                        }
+                    var reverts = p.Revert ?? new List<string>();
+                    int rsw = reverts.IndexOf("power.ultimatePerf");
+                    if (rsw >= 0)
+                        foreach (var id in planScoped)
+                        {
+                            int i = reverts.IndexOf(id);
+                            if (i >= 0 && i > rsw) violations++;
+                        }
+                    if (p.RevertAll)
+                    {
+                        var order = _tweakDefs.Select(t => t.Id).ToList();
+                        int osw = order.IndexOf("power.ultimatePerf");
+                        foreach (var id in planScoped)
+                        {
+                            int i = order.IndexOf(id);
+                            if (i >= 0 && i < osw) violations++;
+                        }
+                    }
+                }
+                DevLogLine((violations == 0 ? "PASS" : "FAIL") + ": preset power order — plan switch first on apply, last on revert (" + violations + " violations)");
+            }
+            catch (Exception ex) { DevLogLine("FAIL: preset power order — " + ex.Message); }
+
+            try
+            {
+                // Settings export/import round-trip: write the live settings
+                // out through ExportTo, read them back through ImportFrom
+                // into a throwaway instance on a temp folder, and confirm
+                // nothing is lost. This exercises the real file paths.
+                string tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "stk_settings_test_" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(tmp);
+                try
+                {
+                    string exported = System.IO.Path.Combine(tmp, "export.json");
+                    _settings.ExportTo(exported);
+                    var probe = new SettingsService(tmp);
+                    probe.ImportFrom(exported);
+                    string a = JsonSerializer.Serialize(_settings.Settings);
+                    string b = JsonSerializer.Serialize(probe.Settings);
+                    DevLogLine((a == b ? "PASS" : "FAIL") + ": settings round-trip — ExportTo/ImportFrom, all fields");
+                }
+                finally
+                {
+                    try { Directory.Delete(tmp, true); } catch { }
+                }
             }
             catch (Exception ex) { DevLogLine("FAIL: settings round-trip — " + ex.Message); }
 
