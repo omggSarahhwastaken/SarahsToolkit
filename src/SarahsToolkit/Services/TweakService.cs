@@ -27,6 +27,12 @@ namespace SarahsToolkit.Services
         {
             try
             {
+                if (!string.IsNullOrWhiteSpace(tweak.CheckScript))
+                {
+                    var r = RunScript(tweak.CheckScript);
+                    if (r.ExitCode == -1) return TweakState.Unknown;
+                    return r.ExitCode == 0 ? TweakState.Applied : TweakState.NotApplied;
+                }
                 var c = tweak.Check;
                 if (c == null) return TweakState.Unknown;
                 string actual = ReadValue(c.Hive, c.KeyPath, c.ValueName, c.Kind);
@@ -46,6 +52,11 @@ namespace SarahsToolkit.Services
         {
             try
             {
+                if (!string.IsNullOrWhiteSpace(tweak.CheckScript))
+                {
+                    var r = RunScript(tweak.CheckScript);
+                    return r.ExitCode == -1 ? "check script failed: " + r.Error : "";
+                }
                 var c = tweak.Check;
                 if (c == null) return "no check defined for this tweak";
                 ReadValue(c.Hive, c.KeyPath, c.ValueName, c.Kind);
@@ -60,11 +71,30 @@ namespace SarahsToolkit.Services
         public void Apply(TweakDefinition tweak)
         {
             foreach (var op in tweak.Apply) WriteOperation(op);
+            RunCheckedScript(tweak.ApplyScript);
         }
 
         public void Revert(TweakDefinition tweak)
         {
             foreach (var op in tweak.Revert) WriteOperation(op);
+            RunCheckedScript(tweak.RevertScript);
+        }
+
+        // Scripts run through the temp-file runner (file deleted afterwards).
+        // A 1-minute cap keeps toggle reads from hanging the UI.
+        private static PowerShellResult RunScript(string script)
+        {
+            return PowerShellRunner.RunScript(script, 1);
+        }
+
+        private static void RunCheckedScript(string script)
+        {
+            if (string.IsNullOrWhiteSpace(script)) return;
+            var r = RunScript(script);
+            if (r.ExitCode != 0)
+                throw new InvalidOperationException(
+                    "Script failed (exit " + r.ExitCode + "): " +
+                    (string.IsNullOrWhiteSpace(r.Error) ? r.Output : r.Error).Trim());
         }
 
         private static RegistryKey HiveRoot(string hive)

@@ -223,7 +223,7 @@ namespace SarahsToolkit
             {
                 _tweakDefs = _tweaks.LoadTweaks();
                 BuildConflictMap();
-                BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
+                BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance", "Network", "Power" });
                 BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
                 BuildTweakTab(SecurityTweaksPanel, new[] { "Security" });
             }
@@ -1849,7 +1849,7 @@ namespace SarahsToolkit
                 (failed > 0 ? ", " + failed + " failed." : ".") +
                 (needsReboot ? " Restart Windows for full effect." : ""));
             // Re-sync the Optimize/Customize/Security toggles and the ratings.
-            BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
+            BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance", "Network", "Power" });
             BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
             BuildTweakTab(SecurityTweaksPanel, new[] { "Security" });
             RefreshPresetRatings();
@@ -2999,7 +2999,7 @@ namespace SarahsToolkit
                 }
             }
             // Re-sync the Optimize toggles.
-            BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance" });
+            BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance", "Network", "Power" });
             string msg = "Recommended tweaks: " + applied + " applied";
             if (already > 0) msg += ", " + already + " already on";
             if (skipped > 0) msg += ", " + skipped + " unreadable";
@@ -3772,10 +3772,22 @@ namespace SarahsToolkit
             {
                 var tweaks = _tweaks.LoadTweaks();
                 int bad = tweaks.Count(t => string.IsNullOrWhiteSpace(t.Id) ||
-                    string.IsNullOrWhiteSpace(t.Name) || t.Apply == null);
+                    string.IsNullOrWhiteSpace(t.Name) ||
+                    (t.Apply == null && string.IsNullOrWhiteSpace(t.ApplyScript)));
                 int dupes = tweaks.GroupBy(t => t.Id).Count(g => g.Count() > 1);
-                DevLogLine(((bad == 0 && dupes == 0) ? "PASS" : "FAIL") + ": tweaks.json — " +
-                    tweaks.Count + " tweaks, " + bad + " invalid, " + dupes + " duplicate ids");
+                int scriptTweaks = tweaks.Count(t => !string.IsNullOrWhiteSpace(t.ApplyScript) ||
+                    !string.IsNullOrWhiteSpace(t.CheckScript));
+                // Script tweaks (powercfg / fsutil / per-adapter) must be fully
+                // reversible and readable: an apply script needs a revert script
+                // and a check (script or registry) so the toggle can show state.
+                int scriptBad = tweaks.Count(t =>
+                    (!string.IsNullOrWhiteSpace(t.ApplyScript) ||
+                     !string.IsNullOrWhiteSpace(t.CheckScript)) &&
+                    (string.IsNullOrWhiteSpace(t.RevertScript) ||
+                     (t.Check == null && string.IsNullOrWhiteSpace(t.CheckScript))));
+                DevLogLine(((bad == 0 && dupes == 0 && scriptBad == 0) ? "PASS" : "FAIL") + ": tweaks.json — " +
+                    tweaks.Count + " tweaks, " + bad + " invalid, " + dupes + " duplicate ids, " +
+                    scriptTweaks + " script tweaks (" + scriptBad + " missing revert/check)");
             }
             catch (Exception ex) { DevLogLine("FAIL: tweaks.json — " + ex.Message); }
 

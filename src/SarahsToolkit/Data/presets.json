@@ -10,7 +10,10 @@
             "perf.menuDelay",
             "perf.startupDelay",
             "perf.transparency",
-            "perf.animations"
+            "perf.animations",
+            "privacy.silentInstalls",
+            "privacy.consumerExperience",
+            "perf.deliveryOpt"
         ]
     },
     {
@@ -26,11 +29,20 @@
             "gaming.mousePrecision",
             "gaming.hwScheduling",
             "perf.powerThrottling",
-            "privacy.telemetry"
+            "privacy.telemetry",
+            "gaming.prioritySeparation",
+            "gaming.linearMouse",
+            "gaming.stickyKeys",
+            "gaming.filterKeys",
+            "net.nagle",
+            "net.qos",
+            "power.coreParking",
+            "power.pcieAspm",
+            "power.wifiPerf"
         ]
     },
     {
-        "description": "Everything in Gaming, plus aggressive cuts to background disk and CPU activity. Fastest feel overall; laptops may run warmer and some visual effects are turned off.",
+        "description": "Everything in Gaming, plus aggressive cuts to background disk and CPU activity. Fastest feel overall; laptops may run warmer and some visual effects are turned off. Also switches to the Ultimate Performance power plan.",
         "id": "max-performance",
         "name": "Max Performance",
         "tweaks": [
@@ -51,7 +63,23 @@
             "perf.animations",
             "privacy.telemetry",
             "privacy.advertisingId",
-            "privacy.tailoredExperiences"
+            "privacy.tailoredExperiences",
+            "gaming.prioritySeparation",
+            "gaming.linearMouse",
+            "gaming.stickyKeys",
+            "gaming.filterKeys",
+            "net.nagle",
+            "net.qos",
+            "power.coreParking",
+            "power.pcieAspm",
+            "power.wifiPerf",
+            "power.ultimatePerf",
+            "net.adapterPowerSaving",
+            "net.dnsPriority",
+            "perf.hibernate",
+            "perf.disable8dot3",
+            "privacy.silentInstalls",
+            "privacy.consumerExperience"
         ]
     },
     {
@@ -68,7 +96,12 @@
             "perf.sysMain",
             "perf.prefetch",
             "perf.lastAccess",
-            "gaming.hwScheduling"
+            "gaming.hwScheduling",
+            "power.coreParking",
+            "power.pcieAspm",
+            "power.usbSuspend",
+            "power.wifiPerf",
+            "power.ultimatePerf"
         ]
     },
     {

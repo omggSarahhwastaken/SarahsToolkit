@@ -122,8 +122,8 @@
     },
     "description": "Turns off background game recording. Can improve FPS on lower-end systems.",
     "id": "gaming.gameDVR",
-    "recommended": true,
     "name": "Disable Game DVR background recording",
+    "recommended": true,
     "requiresReboot": false,
     "revert": [
       {
@@ -162,8 +162,8 @@
     },
     "description": "Lets the GPU manage its own memory scheduling. Helps on most modern GPUs.",
     "id": "gaming.hwScheduling",
-    "recommended": true,
     "name": "Hardware-accelerated GPU scheduling",
+    "recommended": true,
     "requiresReboot": true,
     "revert": [
       {
@@ -561,8 +561,8 @@
     },
     "description": "Lets Windows prioritize CPU and GPU resources for the game you're playing. Same as the Settings > Gaming > Game Mode toggle.",
     "id": "gaming.gameMode",
-    "recommended": true,
     "name": "Enable Windows Game Mode",
+    "recommended": true,
     "requiresReboot": false,
     "revert": [
       {
@@ -640,8 +640,8 @@
     },
     "description": "Raises the multimedia scheduler priority of the Games profile so games get first dibs on CPU and GPU time.",
     "id": "gaming.gpuPriority",
-    "recommended": true,
     "name": "Prioritize games for GPU/CPU scheduling",
+    "recommended": true,
     "requiresReboot": true,
     "revert": [
       {
@@ -694,8 +694,8 @@
     },
     "description": "Stops Windows from throttling network throughput and reserves no CPU for background tasks (default 20%). Can reduce ping spikes in online games.",
     "id": "gaming.netThrottle",
-    "recommended": true,
     "name": "Remove network throttling for gaming",
+    "recommended": true,
     "requiresReboot": true,
     "revert": [
       {
@@ -748,8 +748,8 @@
     },
     "description": "Turns off mouse acceleration so aim is 1:1 with no prediction. Takes effect after signing out and back in.",
     "id": "gaming.mousePrecision",
-    "recommended": true,
     "name": "Disable enhance pointer precision",
+    "recommended": true,
     "requiresReboot": false,
     "revert": [
       {
@@ -795,8 +795,8 @@
     },
     "description": "SysMain preloads apps into RAM but is the classic cause of the System process randomly hammering the disk at tens of MB/s. Disabling stops those spikes; app launches may be marginally slower on hard drives.",
     "id": "perf.sysMain",
-    "recommended": true,
     "name": "Disable SysMain (Superfetch)",
+    "recommended": true,
     "requiresReboot": true,
     "revert": [
       {
@@ -906,8 +906,8 @@
     },
     "description": "Stops Windows from throttling background and foreground process CPU to save power. Can smooth out stutter; uses a bit more battery on laptops.",
     "id": "perf.powerThrottling",
-    "recommended": true,
     "name": "Disable CPU power throttling",
+    "recommended": true,
     "requiresReboot": true,
     "revert": [
       {
@@ -984,498 +984,930 @@
     ]
   },
   {
-    "id": "customize.accentTaskbar",
-    "name": "Accent color on Start and taskbar",
-    "description": "Shows your accent color on the Start menu and taskbar instead of plain dark.",
-    "category": "Theme",
-    "requiresReboot": false,
-    "recommended": false,
     "apply": [
       {
+        "data": "1",
         "hive": "HKCU",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-        "valueName": "ColorPrevalence",
         "kind": "DWord",
-        "data": "1"
+        "valueName": "ColorPrevalence"
       }
     ],
-    "revert": [
-      {
-        "hive": "HKCU",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-        "valueName": "ColorPrevalence",
-        "kind": "DWord",
-        "data": "0"
-      }
-    ],
+    "category": "Theme",
     "check": {
+      "expected": "1",
       "hive": "HKCU",
       "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-      "valueName": "ColorPrevalence",
       "kind": "DWord",
-      "expected": "1"
-    }
-  },
-  {
-    "id": "customize.hideSearch",
-    "name": "Hide taskbar search",
-    "description": "Hides the search box/icon from the taskbar. Search still works with the Windows key.",
-    "category": "Taskbar",
-    "requiresReboot": false,
+      "valueName": "ColorPrevalence"
+    },
+    "description": "Shows your accent color on the Start menu and taskbar instead of plain dark.",
+    "id": "customize.accentTaskbar",
+    "name": "Accent color on Start and taskbar",
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKCU",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search",
-        "valueName": "SearchboxTaskbarMode",
-        "kind": "DWord",
-        "data": "0"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "0",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        "kind": "DWord",
+        "valueName": "ColorPrevalence"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "0",
         "hive": "HKCU",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search",
-        "valueName": "SearchboxTaskbarMode",
         "kind": "DWord",
-        "data": "1"
+        "valueName": "SearchboxTaskbarMode"
       }
     ],
+    "category": "Taskbar",
     "check": {
+      "expected": "0",
       "hive": "HKCU",
       "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search",
-      "valueName": "SearchboxTaskbarMode",
       "kind": "DWord",
-      "expected": "0"
-    }
+      "valueName": "SearchboxTaskbarMode"
+    },
+    "description": "Hides the search box/icon from the taskbar. Search still works with the Windows key.",
+    "id": "customize.hideSearch",
+    "name": "Hide taskbar search",
+    "recommended": false,
+    "requiresReboot": false,
+    "revert": [
+      {
+        "data": "1",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search",
+        "kind": "DWord",
+        "valueName": "SearchboxTaskbarMode"
+      }
+    ]
   },
   {
+    "apply": [
+      {
+        "data": "0",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "kind": "DWord",
+        "valueName": "ShowTaskViewButton"
+      }
+    ],
+    "category": "Taskbar",
+    "check": {
+      "expected": "0",
+      "hive": "HKCU",
+      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+      "kind": "DWord",
+      "valueName": "ShowTaskViewButton"
+    },
+    "description": "Removes the Task View button from the taskbar.",
     "id": "customize.hideTaskView",
     "name": "Hide Task View button",
-    "description": "Removes the Task View button from the taskbar.",
-    "category": "Taskbar",
-    "requiresReboot": false,
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKCU",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "ShowTaskViewButton",
-        "kind": "DWord",
-        "data": "0"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "1",
         "hive": "HKCU",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "ShowTaskViewButton",
         "kind": "DWord",
-        "data": "1"
+        "valueName": "ShowTaskViewButton"
       }
-    ],
-    "check": {
-      "hive": "HKCU",
-      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-      "valueName": "ShowTaskViewButton",
-      "kind": "DWord",
-      "expected": "0"
-    }
+    ]
   },
   {
+    "apply": [
+      {
+        "data": "0",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "kind": "DWord",
+        "valueName": "TaskbarDa"
+      }
+    ],
+    "category": "Taskbar",
+    "check": {
+      "expected": "0",
+      "hive": "HKCU",
+      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+      "kind": "DWord",
+      "valueName": "TaskbarDa"
+    },
+    "description": "Removes the Widgets/weather button from the taskbar.",
     "id": "customize.hideWidgets",
     "name": "Hide Widgets button",
-    "description": "Removes the Widgets/weather button from the taskbar.",
-    "category": "Taskbar",
-    "requiresReboot": false,
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKCU",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "TaskbarDa",
-        "kind": "DWord",
-        "data": "0"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "1",
         "hive": "HKCU",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "TaskbarDa",
         "kind": "DWord",
-        "data": "1"
+        "valueName": "TaskbarDa"
       }
-    ],
-    "check": {
-      "hive": "HKCU",
-      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-      "valueName": "TaskbarDa",
-      "kind": "DWord",
-      "expected": "0"
-    }
+    ]
   },
   {
+    "apply": [
+      {
+        "data": "2",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "kind": "DWord",
+        "valueName": "TaskbarGlomLevel"
+      }
+    ],
+    "category": "Taskbar",
+    "check": {
+      "expected": "2",
+      "hive": "HKCU",
+      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+      "kind": "DWord",
+      "valueName": "TaskbarGlomLevel"
+    },
+    "description": "Shows a separate taskbar button per window instead of grouping them.",
     "id": "customize.noCombine",
     "name": "Never combine taskbar buttons",
-    "description": "Shows a separate taskbar button per window instead of grouping them.",
-    "category": "Taskbar",
-    "requiresReboot": false,
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKCU",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "TaskbarGlomLevel",
-        "kind": "DWord",
-        "data": "2"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "0",
         "hive": "HKCU",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "TaskbarGlomLevel",
         "kind": "DWord",
-        "data": "0"
+        "valueName": "TaskbarGlomLevel"
       }
-    ],
-    "check": {
-      "hive": "HKCU",
-      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-      "valueName": "TaskbarGlomLevel",
-      "kind": "DWord",
-      "expected": "2"
-    }
+    ]
   },
   {
+    "apply": [
+      {
+        "data": "1",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "kind": "DWord",
+        "valueName": "Hidden"
+      }
+    ],
+    "category": "Explorer",
+    "check": {
+      "expected": "1",
+      "hive": "HKCU",
+      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+      "kind": "DWord",
+      "valueName": "Hidden"
+    },
+    "description": "Makes File Explorer show hidden files, folders and drives.",
     "id": "customize.hiddenFiles",
     "name": "Show hidden files and folders",
-    "description": "Makes File Explorer show hidden files, folders and drives.",
-    "category": "Explorer",
-    "requiresReboot": false,
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKCU",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "Hidden",
-        "kind": "DWord",
-        "data": "1"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "2",
         "hive": "HKCU",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "Hidden",
         "kind": "DWord",
-        "data": "2"
+        "valueName": "Hidden"
       }
-    ],
-    "check": {
-      "hive": "HKCU",
-      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-      "valueName": "Hidden",
-      "kind": "DWord",
-      "expected": "1"
-    }
+    ]
   },
   {
+    "apply": [
+      {
+        "data": "1",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "kind": "DWord",
+        "valueName": "LaunchTo"
+      }
+    ],
+    "category": "Explorer",
+    "check": {
+      "expected": "1",
+      "hive": "HKCU",
+      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+      "kind": "DWord",
+      "valueName": "LaunchTo"
+    },
+    "description": "File Explorer opens on This PC instead of Home.",
     "id": "customize.thisPC",
     "name": "Open File Explorer to This PC",
-    "description": "File Explorer opens on This PC instead of Home.",
-    "category": "Explorer",
-    "requiresReboot": false,
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKCU",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "LaunchTo",
-        "kind": "DWord",
-        "data": "1"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "2",
         "hive": "HKCU",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "LaunchTo",
         "kind": "DWord",
-        "data": "2"
+        "valueName": "LaunchTo"
       }
-    ],
-    "check": {
-      "hive": "HKCU",
-      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-      "valueName": "LaunchTo",
-      "kind": "DWord",
-      "expected": "1"
-    }
+    ]
   },
   {
+    "apply": [
+      {
+        "data": "0",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "kind": "DWord",
+        "valueName": "Start_TrackProgs"
+      }
+    ],
+    "category": "Start",
+    "check": {
+      "expected": "0",
+      "hive": "HKCU",
+      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+      "kind": "DWord",
+      "valueName": "Start_TrackProgs"
+    },
+    "description": "Stops the Start menu tracking and listing recently added apps.",
     "id": "customize.noRecentStart",
     "name": "Hide recently added apps in Start",
-    "description": "Stops the Start menu tracking and listing recently added apps.",
-    "category": "Start",
-    "requiresReboot": false,
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKCU",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "Start_TrackProgs",
-        "kind": "DWord",
-        "data": "0"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "1",
         "hive": "HKCU",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-        "valueName": "Start_TrackProgs",
         "kind": "DWord",
-        "data": "1"
+        "valueName": "Start_TrackProgs"
       }
-    ],
-    "check": {
-      "hive": "HKCU",
-      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-      "valueName": "Start_TrackProgs",
-      "kind": "DWord",
-      "expected": "0"
-    }
+    ]
   },
   {
-    "id": "privacy.backgroundApps",
-    "name": "Disable background apps",
-    "description": "Stops Microsoft Store apps running in the background. Saves CPU and battery; some live tiles and notifications stop updating.",
-    "category": "Privacy",
-    "requiresReboot": false,
-    "recommended": false,
     "apply": [
       {
+        "data": "1",
         "hive": "HKCU",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications",
-        "valueName": "GlobalUserDisabled",
         "kind": "DWord",
-        "data": "1"
+        "valueName": "GlobalUserDisabled"
       }
     ],
-    "revert": [
-      {
-        "hive": "HKCU",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications",
-        "valueName": "GlobalUserDisabled",
-        "kind": "DWord",
-        "data": "0"
-      }
-    ],
+    "category": "Privacy",
     "check": {
+      "expected": "1",
       "hive": "HKCU",
       "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications",
-      "valueName": "GlobalUserDisabled",
       "kind": "DWord",
-      "expected": "1"
-    }
-  },
-  {
-    "id": "security.usbAutorun",
-    "name": "Disable USB autorun",
-    "description": "Stops USB drives from auto-running programs when plugged in \u2014 the classic way infected sticks spread. You can still open them manually.",
-    "category": "Security",
+      "valueName": "GlobalUserDisabled"
+    },
+    "description": "Stops Microsoft Store apps running in the background. Saves CPU and battery; some live tiles and notifications stop updating.",
+    "id": "privacy.backgroundApps",
+    "name": "Disable background apps",
+    "recommended": false,
     "requiresReboot": false,
-    "recommended": true,
-    "apply": [
-      {
-        "hive": "HKLM",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-        "valueName": "NoDriveTypeAutoRun",
-        "kind": "DWord",
-        "data": "255"
-      }
-    ],
     "revert": [
       {
+        "data": "0",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications",
+        "kind": "DWord",
+        "valueName": "GlobalUserDisabled"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "255",
         "hive": "HKLM",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-        "valueName": "NoDriveTypeAutoRun",
         "kind": "DWord",
-        "data": "145"
+        "valueName": "NoDriveTypeAutoRun"
       }
     ],
+    "category": "Security",
     "check": {
+      "expected": "255",
       "hive": "HKLM",
       "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-      "valueName": "NoDriveTypeAutoRun",
       "kind": "DWord",
-      "expected": "255"
-    }
-  },
-  {
-    "id": "security.smartScreen",
-    "name": "SmartScreen app warnings",
-    "description": "Warns before running downloaded apps Windows doesn't recognize. Turn off only if you know what you're doing.",
-    "category": "Security",
+      "valueName": "NoDriveTypeAutoRun"
+    },
+    "description": "Stops USB drives from auto-running programs when plugged in \u2014 the classic way infected sticks spread. You can still open them manually.",
+    "id": "security.usbAutorun",
+    "name": "Disable USB autorun",
+    "recommended": true,
     "requiresReboot": false,
-    "recommended": false,
-    "apply": [
-      {
-        "hive": "HKLM",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
-        "valueName": "SmartScreenEnabled",
-        "kind": "String",
-        "data": "Warn"
-      }
-    ],
     "revert": [
       {
+        "data": "145",
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+        "kind": "DWord",
+        "valueName": "NoDriveTypeAutoRun"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "Warn",
         "hive": "HKLM",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
-        "valueName": "SmartScreenEnabled",
         "kind": "String",
-        "data": "Off"
+        "valueName": "SmartScreenEnabled"
       }
     ],
+    "category": "Security",
     "check": {
+      "expected": "Warn",
       "hive": "HKLM",
       "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
-      "valueName": "SmartScreenEnabled",
       "kind": "String",
-      "expected": "Warn"
-    }
-  },
-  {
-    "id": "security.remoteAssist",
-    "name": "Disable Remote Assistance",
-    "description": "Blocks remote assistance invitations to this PC.",
-    "category": "Security",
-    "requiresReboot": false,
+      "valueName": "SmartScreenEnabled"
+    },
+    "description": "Warns before running downloaded apps Windows doesn't recognize. Turn off only if you know what you're doing.",
+    "id": "security.smartScreen",
+    "name": "SmartScreen app warnings",
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKLM",
-        "keyPath": "SYSTEM\\CurrentControlSet\\Control\\Remote Assistance",
-        "valueName": "fAllowToGetHelp",
-        "kind": "DWord",
-        "data": "0"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "Off",
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "kind": "String",
+        "valueName": "SmartScreenEnabled"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "0",
         "hive": "HKLM",
         "keyPath": "SYSTEM\\CurrentControlSet\\Control\\Remote Assistance",
-        "valueName": "fAllowToGetHelp",
         "kind": "DWord",
-        "data": "1"
+        "valueName": "fAllowToGetHelp"
       }
     ],
+    "category": "Security",
     "check": {
+      "expected": "0",
       "hive": "HKLM",
       "keyPath": "SYSTEM\\CurrentControlSet\\Control\\Remote Assistance",
-      "valueName": "fAllowToGetHelp",
       "kind": "DWord",
-      "expected": "0"
-    }
-  },
-  {
-    "id": "security.noLMHash",
-    "name": "Disable LM password hashes",
-    "description": "Stops Windows storing the weak legacy LM hash of your password alongside the modern one.",
-    "category": "Security",
-    "requiresReboot": false,
+      "valueName": "fAllowToGetHelp"
+    },
+    "description": "Blocks remote assistance invitations to this PC.",
+    "id": "security.remoteAssist",
+    "name": "Disable Remote Assistance",
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKLM",
-        "keyPath": "SYSTEM\\CurrentControlSet\\Control\\Lsa",
-        "valueName": "NoLMHash",
-        "kind": "DWord",
-        "data": "1"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "1",
+        "hive": "HKLM",
+        "keyPath": "SYSTEM\\CurrentControlSet\\Control\\Remote Assistance",
+        "kind": "DWord",
+        "valueName": "fAllowToGetHelp"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "1",
         "hive": "HKLM",
         "keyPath": "SYSTEM\\CurrentControlSet\\Control\\Lsa",
-        "valueName": "NoLMHash",
         "kind": "DWord",
-        "data": "0"
+        "valueName": "NoLMHash"
       }
     ],
+    "category": "Security",
     "check": {
+      "expected": "1",
       "hive": "HKLM",
       "keyPath": "SYSTEM\\CurrentControlSet\\Control\\Lsa",
-      "valueName": "NoLMHash",
       "kind": "DWord",
-      "expected": "1"
-    }
-  },
-  {
-    "id": "security.uacMax",
-    "name": "UAC: always notify",
-    "description": "User Account Control prompts on every system change, including changes you make yourself. Maximum nagging, maximum safety.",
-    "category": "Security",
-    "requiresReboot": false,
+      "valueName": "NoLMHash"
+    },
+    "description": "Stops Windows storing the weak legacy LM hash of your password alongside the modern one.",
+    "id": "security.noLMHash",
+    "name": "Disable LM password hashes",
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKLM",
-        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
-        "valueName": "ConsentPromptBehaviorAdmin",
-        "kind": "DWord",
-        "data": "2"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "0",
+        "hive": "HKLM",
+        "keyPath": "SYSTEM\\CurrentControlSet\\Control\\Lsa",
+        "kind": "DWord",
+        "valueName": "NoLMHash"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "2",
         "hive": "HKLM",
         "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
-        "valueName": "ConsentPromptBehaviorAdmin",
         "kind": "DWord",
-        "data": "5"
+        "valueName": "ConsentPromptBehaviorAdmin"
       }
     ],
+    "category": "Security",
     "check": {
+      "expected": "2",
       "hive": "HKLM",
       "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
-      "valueName": "ConsentPromptBehaviorAdmin",
       "kind": "DWord",
-      "expected": "2"
-    }
-  },
-  {
-    "id": "security.adminShares",
-    "name": "Disable administrative shares",
-    "description": "Turns off the hidden C$ and ADMIN$ network shares Windows creates on every boot.",
-    "category": "Security",
-    "requiresReboot": true,
+      "valueName": "ConsentPromptBehaviorAdmin"
+    },
+    "description": "User Account Control prompts on every system change, including changes you make yourself. Maximum nagging, maximum safety.",
+    "id": "security.uacMax",
+    "name": "UAC: always notify",
     "recommended": false,
-    "apply": [
-      {
-        "hive": "HKLM",
-        "keyPath": "SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
-        "valueName": "AutoShareWks",
-        "kind": "DWord",
-        "data": "0"
-      }
-    ],
+    "requiresReboot": false,
     "revert": [
       {
+        "data": "5",
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+        "kind": "DWord",
+        "valueName": "ConsentPromptBehaviorAdmin"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "0",
         "hive": "HKLM",
         "keyPath": "SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
-        "valueName": "AutoShareWks",
         "kind": "DWord",
-        "data": "1"
+        "valueName": "AutoShareWks"
       }
     ],
+    "category": "Security",
     "check": {
+      "expected": "0",
       "hive": "HKLM",
       "keyPath": "SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
-      "valueName": "AutoShareWks",
       "kind": "DWord",
-      "expected": "0"
-    }
+      "valueName": "AutoShareWks"
+    },
+    "description": "Turns off the hidden C$ and ADMIN$ network shares Windows creates on every boot.",
+    "id": "security.adminShares",
+    "name": "Disable administrative shares",
+    "recommended": false,
+    "requiresReboot": true,
+    "revert": [
+      {
+        "data": "1",
+        "hive": "HKLM",
+        "keyPath": "SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+        "kind": "DWord",
+        "valueName": "AutoShareWks"
+      }
+    ]
+  },
+  {
+    "applyScript": "$ErrorActionPreference = 'Stop'; $list = powercfg /list; $m = [regex]::Match($list, 'GUID:\\s*([0-9a-fA-F-]{36})\\s+\\(Ultimate Performance\\)'); if ($m.Success) { $g = $m.Groups[1].Value } else { $o = powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61; if ($LASTEXITCODE -ne 0) { throw 'Could not create the Ultimate Performance plan.' }; $m2 = [regex]::Match($o, '([0-9a-fA-F-]{36})'); if (-not $m2.Success) { throw 'Could not read the new plan GUID.' }; $g = $m2.Groups[1].Value }; powercfg /setactive $g; if ($LASTEXITCODE -ne 0) { throw 'Could not activate the Ultimate Performance plan.' }",
+    "category": "Power",
+    "checkScript": "if ((powercfg /getactivescheme) -match 'Ultimate Performance') { exit 0 } else { exit 1 }",
+    "description": "Switches to the hidden Ultimate Performance plan: no frequency scaling, maximum throughput. Reverting switches back to Balanced.",
+    "id": "power.ultimatePerf",
+    "name": "Ultimate Performance power plan",
+    "requiresReboot": false,
+    "revertScript": "powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e; if ($LASTEXITCODE -ne 0) { throw 'Could not switch back to Balanced.' }"
+  },
+  {
+    "applyScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583 100; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583 100; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }",
+    "category": "Power",
+    "checkScript": "$out = powercfg /q SCHEME_CURRENT 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583; $ac = [regex]::Match($out, 'Current AC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); $dc = [regex]::Match($out, 'Current DC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); if (-not $ac.Success -or -not $dc.Success) { exit 1 }; if ([Convert]::ToInt32($ac.Groups[1].Value, 16) -eq 100 -and [Convert]::ToInt32($dc.Groups[1].Value, 16) -eq 100) { exit 0 } else { exit 1 }",
+    "description": "Keeps all CPU cores active at all times (min parked cores 100% on battery and plugged in). Prevents latency spikes from cores waking up; uses more power on battery.",
+    "id": "power.coreParking",
+    "name": "Disable CPU core parking",
+    "requiresReboot": false,
+    "revertScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583 10; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 54533251-82be-4824-96c1-47b60b740d00 0cc5b647-c1df-4637-891a-dec35c318583 10; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }"
+  },
+  {
+    "applyScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }",
+    "category": "Power",
+    "checkScript": "$out = powercfg /q SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5; $ac = [regex]::Match($out, 'Current AC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); $dc = [regex]::Match($out, 'Current DC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); if (-not $ac.Success -or -not $dc.Success) { exit 1 }; if ([Convert]::ToInt32($ac.Groups[1].Value, 16) -eq 0 -and [Convert]::ToInt32($dc.Groups[1].Value, 16) -eq 0) { exit 0 } else { exit 1 }",
+    "description": "Stops the GPU and NVMe drive dropping into low-power PCIe states that add latency. Reverting restores Moderate on plugged-in power and Maximum on battery.",
+    "id": "power.pcieAspm",
+    "name": "Disable PCIe Link State Power Management",
+    "requiresReboot": false,
+    "revertScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 1; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed.' }; powercfg /setdcvalueindex SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 2; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed.' }; powercfg /setactive SCHEME_CURRENT"
+  },
+  {
+    "applyScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }",
+    "category": "Power",
+    "checkScript": "$out = powercfg /q SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226; $ac = [regex]::Match($out, 'Current AC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); $dc = [regex]::Match($out, 'Current DC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); if (-not $ac.Success -or -not $dc.Success) { exit 1 }; if ([Convert]::ToInt32($ac.Groups[1].Value, 16) -eq 0 -and [Convert]::ToInt32($dc.Groups[1].Value, 16) -eq 0) { exit 0 } else { exit 1 }",
+    "description": "Stops Windows powering down idle USB ports. Fixes mice, headsets and drives disconnecting randomly; re-enabling is the Windows default.",
+    "id": "power.usbSuspend",
+    "name": "Disable USB selective suspend",
+    "requiresReboot": false,
+    "revertScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }"
+  },
+  {
+    "applyScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 0; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }",
+    "category": "Power",
+    "checkScript": "$out = powercfg /q SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a; $ac = [regex]::Match($out, 'Current AC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); $dc = [regex]::Match($out, 'Current DC Power Setting Index:\\s*0x([0-9a-fA-F]+)'); if (-not $ac.Success -or -not $dc.Success) { exit 1 }; if ([Convert]::ToInt32($ac.Groups[1].Value, 16) -eq 0 -and [Convert]::ToInt32($dc.Groups[1].Value, 16) -eq 0) { exit 0 } else { exit 1 }",
+    "description": "Sets the wireless adapter power saving to Maximum Performance for a steadier connection. Reverting restores Medium power saving.",
+    "id": "power.wifiPerf",
+    "name": "Wi-Fi maximum performance",
+    "requiresReboot": false,
+    "revertScript": "$ErrorActionPreference = 'Stop'; powercfg /setacvalueindex SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 2; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the plugged-in value.' }; powercfg /setdcvalueindex SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 2; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed setting the on-battery value.' }; powercfg /setactive SCHEME_CURRENT; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed applying the plan.' }"
+  },
+  {
+    "applyScript": "$ErrorActionPreference = 'Stop'; $ifaces = Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces' | Where-Object { $_.GetValue('DhcpIPAddress') -or $_.GetValue('IPAddress') }; if (-not $ifaces) { throw 'No network interfaces found.' }; foreach ($i in $ifaces) { Set-ItemProperty -Path $i.PSPath -Name 'TcpNoDelay' -Value 1 -Type DWord }",
+    "category": "Network",
+    "checkScript": "$ifaces = Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces' | Where-Object { $_.GetValue('DhcpIPAddress') -or $_.GetValue('IPAddress') }; if (-not $ifaces) { exit 1 }; foreach ($i in $ifaces) { if ($i.GetValue('TcpNoDelay') -ne 1) { exit 1 } }; exit 0",
+    "description": "Sends TCP packets immediately instead of buffering small ones, for lower latency in real-time games. Applies to every connected network adapter.",
+    "id": "net.nagle",
+    "name": "Disable Nagle's algorithm",
+    "requiresReboot": true,
+    "revertScript": "$ErrorActionPreference = 'Stop'; $ifaces = Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces'; foreach ($i in $ifaces) { Remove-ItemProperty -Path $i.PSPath -Name 'TcpNoDelay' -ErrorAction SilentlyContinue }"
+  },
+  {
+    "apply": [
+      {
+        "data": "0",
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\Psched",
+        "kind": "DWord",
+        "valueName": "NonBestEffortLimit"
+      }
+    ],
+    "category": "Network",
+    "check": {
+      "expected": "0",
+      "hive": "HKLM",
+      "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\Psched",
+      "kind": "DWord",
+      "valueName": "NonBestEffortLimit"
+    },
+    "description": "Removes the 20% bandwidth Windows reserves for QoS, so the full connection is available.",
+    "id": "net.qos",
+    "name": "Disable QoS bandwidth reservation",
+    "requiresReboot": false,
+    "revert": [
+      {
+        "data": "20",
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\Psched",
+        "kind": "DWord",
+        "valueName": "NonBestEffortLimit"
+      }
+    ]
+  },
+  {
+    "applyScript": "$ErrorActionPreference = 'Stop'; $adapters = Get-NetAdapter -Physical | Where-Object { $_.Status -ne 'Disabled' }; if (-not $adapters) { throw 'No physical network adapters found.' }; foreach ($a in $adapters) { $path = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}\\' + ('{0:D4}' -f $a.DeviceID); Set-ItemProperty -Path $path -Name 'PnPCapabilities' -Value 24 -Type DWord }",
+    "category": "Network",
+    "checkScript": "$adapters = Get-NetAdapter -Physical | Where-Object { $_.Status -ne 'Disabled' }; if (-not $adapters) { exit 1 }; foreach ($a in $adapters) { $path = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}\\' + ('{0:D4}' -f $a.DeviceID); if ((Get-ItemProperty -Path $path -Name 'PnPCapabilities' -ErrorAction SilentlyContinue).PnPCapabilities -ne 24) { exit 1 } }; exit 0",
+    "description": "Stops Windows powering down your network adapters to save energy. Fixes random disconnects; reverting removes the setting so Windows manages it again.",
+    "id": "net.adapterPowerSaving",
+    "name": "Disable network adapter power saving",
+    "requiresReboot": true,
+    "revertScript": "$ErrorActionPreference = 'Stop'; $adapters = Get-NetAdapter -Physical; foreach ($a in $adapters) { $path = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}\\' + ('{0:D4}' -f $a.DeviceID); Remove-ItemProperty -Path $path -Name 'PnPCapabilities' -ErrorAction SilentlyContinue }"
+  },
+  {
+    "apply": [
+      {
+        "data": "86400",
+        "hive": "HKLM",
+        "keyPath": "SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+        "kind": "DWord",
+        "valueName": "MaxCacheTtl"
+      },
+      {
+        "data": "5",
+        "hive": "HKLM",
+        "keyPath": "SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+        "kind": "DWord",
+        "valueName": "MaxNegativeCacheTtl"
+      }
+    ],
+    "category": "Network",
+    "check": {
+      "expected": "86400",
+      "hive": "HKLM",
+      "keyPath": "SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+      "kind": "DWord",
+      "valueName": "MaxCacheTtl"
+    },
+    "description": "Shorter DNS timeout and a bigger DNS cache for faster lookups. Restart to take effect.",
+    "id": "net.dnsPriority",
+    "name": "Optimize DNS priority",
+    "requiresReboot": true,
+    "revert": [
+      {
+        "data": null,
+        "hive": "HKLM",
+        "keyPath": "SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+        "kind": "DWord",
+        "valueName": "MaxCacheTtl"
+      },
+      {
+        "data": null,
+        "hive": "HKLM",
+        "keyPath": "SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+        "kind": "DWord",
+        "valueName": "MaxNegativeCacheTtl"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "38",
+        "hive": "HKLM",
+        "keyPath": "SYSTEM\\CurrentControlSet\\Control\\PriorityControl",
+        "kind": "DWord",
+        "valueName": "Win32PrioritySeparation"
+      }
+    ],
+    "category": "Gaming",
+    "check": {
+      "expected": "38",
+      "hive": "HKLM",
+      "keyPath": "SYSTEM\\CurrentControlSet\\Control\\PriorityControl",
+      "kind": "DWord",
+      "valueName": "Win32PrioritySeparation"
+    },
+    "description": "Tells the kernel scheduler to favour foreground apps with short time slices, so the game in focus gets CPU time first. Restart to take effect.",
+    "id": "gaming.prioritySeparation",
+    "name": "Win32 priority separation (gaming)",
+    "requiresReboot": true,
+    "revert": [
+      {
+        "data": "2",
+        "hive": "HKLM",
+        "keyPath": "SYSTEM\\CurrentControlSet\\Control\\PriorityControl",
+        "kind": "DWord",
+        "valueName": "Win32PrioritySeparation"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "10",
+        "hive": "HKCU",
+        "keyPath": "Control Panel\\Mouse",
+        "kind": "String",
+        "valueName": "MouseSensitivity"
+      }
+    ],
+    "category": "Gaming",
+    "check": {
+      "expected": "10",
+      "hive": "HKCU",
+      "keyPath": "Control Panel\\Mouse",
+      "kind": "String",
+      "valueName": "MouseSensitivity"
+    },
+    "description": "Sets pointer speed to the neutral 6/11 position where Windows applies no scaling. Pairs with Disable enhance pointer precision for true 1:1 mouse movement.",
+    "id": "gaming.linearMouse",
+    "name": "Linear mouse input (6/11)",
+    "requiresReboot": false,
+    "revert": [
+      {
+        "data": "10",
+        "hive": "HKCU",
+        "keyPath": "Control Panel\\Mouse",
+        "kind": "String",
+        "valueName": "MouseSensitivity"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "506",
+        "hive": "HKCU",
+        "keyPath": "Control Panel\\Accessibility\\StickyKeys",
+        "kind": "String",
+        "valueName": "Flags"
+      }
+    ],
+    "category": "Gaming",
+    "check": {
+      "expected": "506",
+      "hive": "HKCU",
+      "keyPath": "Control Panel\\Accessibility\\StickyKeys",
+      "kind": "String",
+      "valueName": "Flags"
+    },
+    "description": "Stops the Sticky Keys popup interrupting gameplay when you press Shift 5 times.",
+    "id": "gaming.stickyKeys",
+    "name": "Disable Sticky Keys prompt",
+    "requiresReboot": false,
+    "revert": [
+      {
+        "data": "510",
+        "hive": "HKCU",
+        "keyPath": "Control Panel\\Accessibility\\StickyKeys",
+        "kind": "String",
+        "valueName": "Flags"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "122",
+        "hive": "HKCU",
+        "keyPath": "Control Panel\\Accessibility\\Keyboard Response",
+        "kind": "String",
+        "valueName": "Flags"
+      }
+    ],
+    "category": "Gaming",
+    "check": {
+      "expected": "122",
+      "hive": "HKCU",
+      "keyPath": "Control Panel\\Accessibility\\Keyboard Response",
+      "kind": "String",
+      "valueName": "Flags"
+    },
+    "description": "Turns off Filter Keys so rapid key presses are never ignored in competitive games.",
+    "id": "gaming.filterKeys",
+    "name": "Disable Filter Keys",
+    "requiresReboot": false,
+    "revert": [
+      {
+        "data": "126",
+        "hive": "HKCU",
+        "keyPath": "Control Panel\\Accessibility\\Keyboard Response",
+        "kind": "String",
+        "valueName": "Flags"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "0",
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+        "kind": "DWord",
+        "valueName": "DODownloadMode"
+      }
+    ],
+    "category": "Performance",
+    "check": {
+      "expected": "0",
+      "hive": "HKLM",
+      "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+      "kind": "DWord",
+      "valueName": "DODownloadMode"
+    },
+    "description": "Stops Windows uploading update data to other PCs on the internet, saving bandwidth.",
+    "id": "perf.deliveryOpt",
+    "name": "Disable Delivery Optimization P2P",
+    "requiresReboot": false,
+    "revert": [
+      {
+        "data": null,
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+        "kind": "DWord",
+        "valueName": "DODownloadMode"
+      }
+    ]
+  },
+  {
+    "applyScript": "powercfg /hibernate off; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed to disable hibernation.' }",
+    "category": "Performance",
+    "check": {
+      "expected": "0",
+      "hive": "HKLM",
+      "keyPath": "SYSTEM\\CurrentControlSet\\Control\\Power",
+      "kind": "DWord",
+      "valueName": "HibernateEnabled"
+    },
+    "description": "Removes hiberfil.sys and frees disk space equal to your RAM size (16 GB on this PC). Fast Startup still works. Reverting turns hibernation back on.",
+    "id": "perf.hibernate",
+    "name": "Disable hibernation",
+    "requiresReboot": false,
+    "revertScript": "powercfg /hibernate on; if ($LASTEXITCODE -ne 0) { throw 'powercfg failed to enable hibernation.' }"
+  },
+  {
+    "applyScript": "fsutil behavior set disable8dot3 1; if ($LASTEXITCODE -ne 0) { throw 'fsutil failed.' }",
+    "category": "Performance",
+    "check": {
+      "expected": "1",
+      "hive": "HKLM",
+      "keyPath": "SYSTEM\\CurrentControlSet\\Control\\FileSystem",
+      "kind": "DWord",
+      "valueName": "NtfsDisable8dot3NameCreation"
+    },
+    "description": "Stops NTFS generating legacy DOS-style short filenames, for faster file operations. Restart to take effect.",
+    "id": "perf.disable8dot3",
+    "name": "Disable 8.3 short filenames",
+    "requiresReboot": true,
+    "revertScript": "fsutil behavior set disable8dot3 0; if ($LASTEXITCODE -ne 0) { throw 'fsutil failed.' }"
+  },
+  {
+    "apply": [
+      {
+        "data": "1",
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+        "kind": "DWord",
+        "valueName": "DisableWindowsConsumerFeatures"
+      },
+      {
+        "data": "1",
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+        "kind": "DWord",
+        "valueName": "DisableCloudOptimizedContent"
+      }
+    ],
+    "category": "Privacy",
+    "check": {
+      "expected": "1",
+      "hive": "HKLM",
+      "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+      "kind": "DWord",
+      "valueName": "DisableWindowsConsumerFeatures"
+    },
+    "description": "Blocks the Microsoft Consumer Experience that installs sponsored apps and bloatware.",
+    "id": "privacy.consumerExperience",
+    "name": "Disable Consumer Experience",
+    "requiresReboot": false,
+    "revert": [
+      {
+        "data": null,
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+        "kind": "DWord",
+        "valueName": "DisableWindowsConsumerFeatures"
+      },
+      {
+        "data": null,
+        "hive": "HKLM",
+        "keyPath": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+        "kind": "DWord",
+        "valueName": "DisableCloudOptimizedContent"
+      }
+    ]
+  },
+  {
+    "apply": [
+      {
+        "data": "0",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+        "kind": "DWord",
+        "valueName": "SilentInstalledAppsEnabled"
+      },
+      {
+        "data": "0",
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+        "kind": "DWord",
+        "valueName": "ContentDeliveryAllowed"
+      }
+    ],
+    "category": "Privacy",
+    "check": {
+      "expected": "0",
+      "hive": "HKCU",
+      "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+      "kind": "DWord",
+      "valueName": "SilentInstalledAppsEnabled"
+    },
+    "description": "Stops Windows silently installing sponsored apps and games in the background.",
+    "id": "privacy.silentInstalls",
+    "name": "Block silent app installs",
+    "requiresReboot": false,
+    "revert": [
+      {
+        "data": null,
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+        "kind": "DWord",
+        "valueName": "SilentInstalledAppsEnabled"
+      },
+      {
+        "data": null,
+        "hive": "HKCU",
+        "keyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+        "kind": "DWord",
+        "valueName": "ContentDeliveryAllowed"
+      }
+    ]
   }
 ]
