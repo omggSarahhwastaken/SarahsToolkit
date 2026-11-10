@@ -16,6 +16,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -103,8 +104,60 @@ namespace SarahsToolkit
             InitializeComponent();
             Loaded += MainWindow_Loaded;
             SourceInitialized += MainWindow_SourceInitialized;
+            // Restore the window where the user left it (size, position,
+            // maximized) instead of always opening 1340x700 centered.
+            _settings.Load();
+            RestoreWindowGeometry();
             // Let Windows shut down / restart without being trapped in the tray.
             Application.Current.SessionEnding += (s, e) => _allowClose = true;
+        }
+
+        // ---------- Window geometry (remember size & position) ----------
+
+        private void RestoreWindowGeometry()
+        {
+            var s = _settings.Settings;
+            if (!s.WindowGeometrySaved) return;
+            double w = Math.Max(s.WindowWidth, MinWidth);
+            double h = Math.Max(s.WindowHeight, MinHeight);
+            // Only restore if the saved position is on a screen that still
+            // exists (e.g. the user unplugged a monitor since last launch).
+            var rect = new Rect(s.WindowLeft, s.WindowTop, w, h);
+            bool onScreen = false;
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+            {
+                var wa = screen.WorkingArea;
+                if (new Rect(wa.Left, wa.Top, wa.Width, wa.Height).IntersectsWith(rect))
+                {
+                    onScreen = true;
+                    break;
+                }
+            }
+            if (!onScreen) return;
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Width = w;
+            Height = h;
+            Left = s.WindowLeft;
+            Top = s.WindowTop;
+            if (s.WindowMaximized) WindowState = WindowState.Maximized;
+        }
+
+        private void SaveWindowGeometry()
+        {
+            if (WindowState == WindowState.Minimized) return;
+            // When maximized, save the normal (restore) bounds, not the
+            // maximized ones, so the next launch restores the right size.
+            Rect bounds = WindowState == WindowState.Maximized
+                ? RestoreBounds
+                : new Rect(Left, Top, Width, Height);
+            var s = _settings.Settings;
+            s.WindowWidth = bounds.Width;
+            s.WindowHeight = bounds.Height;
+            s.WindowLeft = bounds.Left;
+            s.WindowTop = bounds.Top;
+            s.WindowMaximized = WindowState == WindowState.Maximized;
+            s.WindowGeometrySaved = true;
+            _settings.Save();
         }
 
         // ---------- System tray ----------
@@ -113,6 +166,7 @@ namespace SarahsToolkit
         {
             if (_allowClose)
             {
+                SaveWindowGeometry();
                 if (_tray != null) { _tray.Dispose(); _tray = null; }
                 try { _vitals.Dispose(); } catch { }
                 base.OnClosing(e);
@@ -122,12 +176,14 @@ namespace SarahsToolkit
             // unless the user turned that off in Settings.
             if (!_settings.Settings.MinimizeToTray)
             {
+                SaveWindowGeometry();
                 if (_tray != null) { _tray.Dispose(); _tray = null; }
                 try { _vitals.Dispose(); } catch { }
                 base.OnClosing(e);
                 return;
             }
             e.Cancel = true;
+            SaveWindowGeometry();
             Hide();
             EnsureTrayIcon();
             _tray.Visible = true;
@@ -425,6 +481,28 @@ namespace SarahsToolkit
                     RefreshStorageLabel();
                     break;
             }
+
+            // Short fade + slide so page switches don't snap.
+            foreach (var child in PageHost.Children)
+            {
+                if (child is Grid page && page.Visibility == Visibility.Visible)
+                {
+                    AnimatePageIn(page);
+                    break;
+                }
+            }
+        }
+
+        private static void AnimatePageIn(UIElement page)
+        {
+            page.Opacity = 0;
+            var slide = new TranslateTransform(10, 0);
+            page.RenderTransform = slide;
+            page.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
+            slide.BeginAnimation(TranslateTransform.XProperty,
+                new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(150))
+                { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
         }
 
         // ---------- Settings ----------
@@ -435,6 +513,7 @@ namespace SarahsToolkit
             try
             {
                 ApplyGuiScale();
+                ApplyAccent();
                 _perf.Fahrenheit = _settings.Settings.TempFahrenheit;
                 ApplyStartWithWindows();
 
@@ -466,6 +545,101 @@ namespace SarahsToolkit
             double s = _settings.Settings.GuiScale;
             if (RootGrid != null)
                 RootGrid.LayoutTransform = new ScaleTransform(s, s);
+        }
+
+        // ---------- Accent colour ----------
+
+        private class AccentTheme
+        {
+            public string Name;
+            public string Base, Hover, Deep, Light, Selection;
+        }
+
+        // Base / hover / deep / light / selection. Purple is the original
+        // palette, kept pixel-identical so existing users see no change.
+        private static readonly AccentTheme[] AccentThemes = new[]
+        {
+            new AccentTheme { Name = "Purple", Base = "#8B5CF6", Hover = "#A78BFA", Deep = "#6D28D9", Light = "#C4B5FD", Selection = "#2E2A52" },
+            new AccentTheme { Name = "Pink", Base = "#EC4899", Hover = "#F472B6", Deep = "#BE185D", Light = "#F9A8D4", Selection = "#3A2233" },
+            new AccentTheme { Name = "Cyan", Base = "#06B6D4", Hover = "#22D3EE", Deep = "#0E7490", Light = "#A5F3FC", Selection = "#1D3238" },
+            new AccentTheme { Name = "Green", Base = "#22C55E", Hover = "#4ADE80", Deep = "#15803D", Light = "#BBF7D0", Selection = "#1E3327" },
+            new AccentTheme { Name = "Orange", Base = "#F97316", Hover = "#FB923C", Deep = "#C2410C", Light = "#FED7AA", Selection = "#3A2A1E" },
+            new AccentTheme { Name = "Red", Base = "#EF4444", Hover = "#F87171", Deep = "#B91C1C", Light = "#FECACA", Selection = "#3A2226" },
+        };
+
+        private void ApplyAccent()
+        {
+            string hex = _settings.Settings.AccentColor;
+            AccentTheme theme = null;
+            foreach (var t in AccentThemes)
+                if (string.Equals(t.Base, hex, StringComparison.OrdinalIgnoreCase))
+                {
+                    theme = t;
+                    break;
+                }
+            if (theme == null)
+            {
+                // Unknown or corrupt value: fall back to purple and fix the
+                // stored setting so it doesn't keep failing.
+                theme = AccentThemes[0];
+                _settings.Settings.AccentColor = theme.Base;
+                _settings.Save();
+            }
+            // Mutating the shared brushes re-themes every control that uses
+            // them (buttons, toggles, nav indicator, gauge, selection).
+            var res = Application.Current.Resources;
+            SetBrushColor(res, "DkAccentBrush", theme.Base);
+            SetBrushColor(res, "DkAccentHoverBrush", theme.Hover);
+            SetBrushColor(res, "DkAccentDeepBrush", theme.Deep);
+            SetBrushColor(res, "DkAccentLightBrush", theme.Light);
+            SetBrushColor(res, "DkSelectionBrush", theme.Selection);
+            res["DkAccent"] = ParseColor(theme.Base);
+            res["DkAccentHover"] = ParseColor(theme.Hover);
+            res["DkAccentDeep"] = ParseColor(theme.Deep);
+            res["DkAccentLight"] = ParseColor(theme.Light);
+            res["DkSelection"] = ParseColor(theme.Selection);
+            // The CPU sparkline uses a hardcoded purple in XAML; follow the accent.
+            if (VitalCpuGraph != null) VitalCpuGraph.LineColor = ParseColor(theme.Base);
+            UpdateAccentSwatches(theme.Base);
+        }
+
+        private static void SetBrushColor(ResourceDictionary res, string key, string hex)
+        {
+            var brush = res[key] as SolidColorBrush;
+            if (brush != null) brush.Color = ParseColor(hex);
+        }
+
+        private static Color ParseColor(string hex)
+        {
+            return (Color)ColorConverter.ConvertFromString(hex);
+        }
+
+        private void UpdateAccentSwatches(string selectedHex)
+        {
+            var swatches = new[]
+            {
+                AccentSwatchPurple, AccentSwatchPink, AccentSwatchCyan,
+                AccentSwatchGreen, AccentSwatchOrange, AccentSwatchRed
+            };
+            var selectedBorder = (Brush)Application.Current.Resources["DkTextBrush"];
+            var normalBorder = (Brush)Application.Current.Resources["DkBorderBrush"];
+            foreach (var b in swatches)
+            {
+                if (b == null) continue;
+                bool sel = string.Equals(b.Tag as string, selectedHex, StringComparison.OrdinalIgnoreCase);
+                b.Content = sel ? "✓" : "";
+                b.BorderBrush = sel ? selectedBorder : normalBorder;
+                b.BorderThickness = sel ? new Thickness(2) : new Thickness(1);
+            }
+        }
+
+        private void AccentSwatch_Click(object sender, RoutedEventArgs e)
+        {
+            var b = sender as Button;
+            if (b == null) return;
+            _settings.Settings.AccentColor = b.Tag as string;
+            _settings.Save();
+            ApplyAccent();
         }
 
         private void ApplyStartWithWindows()

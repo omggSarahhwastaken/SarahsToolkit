@@ -228,5 +228,15 @@ namespace SarahsToolkit.Services
         public double BootBaselineAvgSec { get; set; } = -1;
         public string BootBaselineBootId { get; set; } = ""; // LastBootUpTime ticks at apply time
         public string BootBaselineDate { get; set; } = "";
+        // Accent colour (hex, e.g. #8B5CF6): buttons, toggles, nav indicator,
+        // gauge. Applied at startup and whenever the picker changes it.
+        public string AccentColor { get; set; } = "#8B5CF6";
+        // Remembered window geometry (0 / false = never saved yet).
+        public double WindowWidth { get; set; } = 0;
+        public double WindowHeight { get; set; } = 0;
+        public double WindowLeft { get; set; } = 0;
+        public double WindowTop { get; set; } = 0;
+        public bool WindowMaximized { get; set; } = false;
+        public bool WindowGeometrySaved { get; set; } = false;
     }
 }

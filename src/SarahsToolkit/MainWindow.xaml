@@ -1091,6 +1091,17 @@
                                         <ComboBoxItem Content="125%"/>
                                         <ComboBoxItem Content="150%"/>
                                     </ComboBox>
+                                    <TextBlock Text="Accent colour" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" Style="{StaticResource Muted12}"
+                                               Text="The colour used for buttons, toggles, the nav indicator and the gauge. Takes effect immediately."/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="AccentSwatchPurple" Tag="#8B5CF6" ToolTip="Purple" Width="32" Height="32" Margin="0,0,8,0" Background="#8B5CF6" Click="AccentSwatch_Click"/>
+                                        <Button x:Name="AccentSwatchPink" Tag="#EC4899" ToolTip="Pink" Width="32" Height="32" Margin="0,0,8,0" Background="#EC4899" Click="AccentSwatch_Click"/>
+                                        <Button x:Name="AccentSwatchCyan" Tag="#06B6D4" ToolTip="Cyan" Width="32" Height="32" Margin="0,0,8,0" Background="#06B6D4" Click="AccentSwatch_Click"/>
+                                        <Button x:Name="AccentSwatchGreen" Tag="#22C55E" ToolTip="Green" Width="32" Height="32" Margin="0,0,8,0" Background="#22C55E" Click="AccentSwatch_Click"/>
+                                        <Button x:Name="AccentSwatchOrange" Tag="#F97316" ToolTip="Orange" Width="32" Height="32" Margin="0,0,8,0" Background="#F97316" Click="AccentSwatch_Click"/>
+                                        <Button x:Name="AccentSwatchRed" Tag="#EF4444" ToolTip="Red" Width="32" Height="32" Margin="0,0,8,0" Background="#EF4444" Click="AccentSwatch_Click"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </GroupBox>
                             <GroupBox Header="Behavior" Margin="0,0,0,12" Padding="10">

@@ -18,6 +18,7 @@
         <Color x:Key="DkAccent">#8B5CF6</Color>
         <Color x:Key="DkAccentHover">#A78BFA</Color>
         <Color x:Key="DkAccentDeep">#6D28D9</Color>
+        <Color x:Key="DkAccentLight">#C4B5FD</Color>
         <Color x:Key="DkSelection">#2E2A52</Color>
 
         <!-- VRCX-style presence dots -->
@@ -40,6 +41,7 @@
         <SolidColorBrush x:Key="DkAccentBrush" Color="{StaticResource DkAccent}"/>
         <SolidColorBrush x:Key="DkAccentHoverBrush" Color="{StaticResource DkAccentHover}"/>
         <SolidColorBrush x:Key="DkAccentDeepBrush" Color="{StaticResource DkAccentDeep}"/>
+        <SolidColorBrush x:Key="DkAccentLightBrush" Color="{StaticResource DkAccentLight}"/>
         <SolidColorBrush x:Key="DkSelectionBrush" Color="{StaticResource DkSelection}"/>
 
         <!-- Minecraft display font (embedded): title + page headings. Body text stays Segoe UI. -->
@@ -239,7 +241,7 @@
                                         Value="{StaticResource DkAccentBrush}"/>
                                 <Setter TargetName="track" Property="BorderBrush"
                                         Value="{StaticResource DkAccentBrush}"/>
-                                <Setter TargetName="thumb" Property="Fill" Value="#C4B5FD"/>
+                                <Setter TargetName="thumb" Property="Fill" Value="{StaticResource DkAccentLightBrush}"/>
                                 <Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right"/>
                                 <Setter TargetName="thumb" Property="Margin" Value="0,0,4,0"/>
                             </Trigger>
@@ -270,7 +272,7 @@
                                     BorderThickness="1"
                                     SnapsToDevicePixels="True">
                                 <Path x:Name="check" Data="M 2,7 L 6,11 L 12,2"
-                                      Stroke="#C4B5FD"
+                                      Stroke="{StaticResource DkAccentLightBrush}"
                                       StrokeThickness="2" Stretch="Uniform" Margin="2"
                                       Visibility="Collapsed"/>
                             </Border>
