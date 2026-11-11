@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>SarahsToolkit</AssemblyName>
     <RootNamespace>SarahsToolkit</RootNamespace>
-    <Version>2.7.9</Version>
+    <Version>2.8.0</Version>
     <Product>Sarah's Toolkit</Product>
     <Description>Sarah's Toolkit - Windows cleanup, debloat and optimization</Description>
     <ApplicationIcon>app.ico</ApplicationIcon>
@@ -33,6 +33,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Data\game_releases.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\startup.mp4">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

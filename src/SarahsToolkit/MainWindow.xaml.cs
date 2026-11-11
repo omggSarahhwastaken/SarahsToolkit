@@ -528,7 +528,14 @@ namespace SarahsToolkit
                 !string.IsNullOrEmpty(_settings.Settings.LastPage) &&
                 _settings.Settings.LastPage != "Home")
                 NavigateToPage(_settings.Settings.LastPage);
+
+            // Startup work is done: the splash can close (it also has an
+            // 8-second cap in App, so a slow step can't hold it forever).
+            try { StartupComplete?.Invoke(this, EventArgs.Empty); } catch { }
         }
+
+        /// <summary>Raised when the first-launch work in MainWindow_Loaded finishes.</summary>
+        public event EventHandler StartupComplete;
 
         // ---------- Navigation ----------
 

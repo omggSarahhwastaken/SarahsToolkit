@@ -1,24 +1,31 @@
 <Window x:Class="SarahsToolkit.SplashWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Sarah's Toolkit — Loading" Width="320" Height="170"
+        Title="Sarah's Toolkit — Loading" Width="360" Height="360"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         WindowStartupLocation="CenterScreen" Topmost="True"
         ShowInTaskbar="False" ResizeMode="NoResize">
-    <Border Background="{StaticResource DkCardBrush}" BorderBrush="{StaticResource DkAccentBrush}"
-            BorderThickness="1" CornerRadius="12" Padding="20">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Border Width="52" Height="52" CornerRadius="14" Background="#1E1E26"
-                    BorderBrush="{StaticResource DkAccentBrush}" BorderThickness="1.5"
-                    HorizontalAlignment="Center">
-                <TextBlock Text="S" FontSize="26" FontWeight="Bold"
-                           Foreground="{StaticResource DkAccentHoverBrush}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
-            <TextBlock Text="Sarah's Toolkit" FontFamily="{StaticResource McFont}" FontSize="16"
-                       HorizontalAlignment="Center" Margin="0,12,0,2"/>
-            <TextBlock Text="Loading…" FontSize="12" Foreground="{StaticResource DkMutedBrush}"
-                       HorizontalAlignment="Center"/>
-        </StackPanel>
+    <Border Background="Black" BorderBrush="{StaticResource DkAccentBrush}"
+            BorderThickness="1" CornerRadius="12" ClipToBounds="True">
+        <Grid>
+            <!-- Static fallback: shown if the video can't play. -->
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Width="52" Height="52" CornerRadius="14" Background="#1E1E26"
+                        BorderBrush="{StaticResource DkAccentBrush}" BorderThickness="1.5"
+                        HorizontalAlignment="Center">
+                    <TextBlock Text="S" FontSize="26" FontWeight="Bold"
+                               Foreground="{StaticResource DkAccentHoverBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="Sarah's Toolkit" FontFamily="{StaticResource McFont}" FontSize="16"
+                           HorizontalAlignment="Center" Margin="0,12,0,2"/>
+                <TextBlock Text="Loading…" FontSize="12" Foreground="{StaticResource DkMutedBrush}"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+            <!-- Animated startup icon: neon toolbox drawing itself in. -->
+            <MediaElement x:Name="SplashVideo" Stretch="Uniform" Volume="0"
+                          LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                          MediaFailed="SplashVideo_MediaFailed"/>
+        </Grid>
     </Border>
 </Window>

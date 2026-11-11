@@ -101,12 +101,27 @@ namespace SarahsToolkit
             base.OnStartup(e);
 
             // Splash while the main window builds and loads (tweak/debloat/
-            // service lists, settings, dashboard). It closes the moment the
-            // main window first renders.
+            // service lists, settings, dashboard). It closes when startup
+            // work finishes, or after 8 seconds at the latest so a slow
+            // step can't hold it forever.
             var splash = new SplashWindow();
             splash.Show();
+            var splashTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(8)
+            };
+            splashTimer.Tick += (s, _) =>
+            {
+                splashTimer.Stop();
+                try { splash.Close(); } catch { }
+            };
+            splashTimer.Start();
             var main = new MainWindow();
-            main.ContentRendered += (s, _) => { try { splash.Close(); } catch { } };
+            main.StartupComplete += (s, _) =>
+            {
+                splashTimer.Stop();
+                try { splash.Close(); } catch { }
+            };
             MainWindow = main;
             main.Show();
         }
