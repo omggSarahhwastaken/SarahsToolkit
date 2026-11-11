@@ -99,6 +99,16 @@ namespace SarahsToolkit
             }
 
             base.OnStartup(e);
+
+            // Splash while the main window builds and loads (tweak/debloat/
+            // service lists, settings, dashboard). It closes the moment the
+            // main window first renders.
+            var splash = new SplashWindow();
+            splash.Show();
+            var main = new MainWindow();
+            main.ContentRendered += (s, _) => { try { splash.Close(); } catch { } };
+            MainWindow = main;
+            main.Show();
         }
     }
 }

@@ -14,6 +14,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -104,6 +105,8 @@ namespace SarahsToolkit
             InitializeComponent();
             Loaded += MainWindow_Loaded;
             SourceInitialized += MainWindow_SourceInitialized;
+            StateChanged += MainWindow_StateChanged;
+            MainWindow_StateChanged(null, null);
             // Restore the window where the user left it (size, position,
             // maximized) instead of always opening 1340x700 centered.
             _settings.Load();
@@ -241,10 +244,150 @@ namespace SarahsToolkit
                 int dark = 1;
                 DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
                     ref dark, sizeof(int));
+                // Borderless window: edge resizing + maximized-to-work-area
+                // are handled in WndProc (the OS provides neither without
+                // standard chrome).
+                _hwndSource = HwndSource.FromHwnd(hwnd);
+                _hwndSource?.AddHook(WndProc);
             }
             catch
             {
                 // Cosmetic only; the app works fine without it.
+            }
+        }
+
+        private HwndSource _hwndSource;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WinPoint { public int x; public int y; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MinMaxInfo
+        {
+            public WinPoint ptReserved;
+            public WinPoint ptMaxSize;
+            public WinPoint ptMaxPosition;
+            public WinPoint ptMinTrackSize;
+            public WinPoint ptMaxTrackSize;
+        }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WinRect { public int left; public int top; public int right; public int bottom; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MonitorInfo
+        {
+            public int cbSize;
+            public WinRect rcMonitor;
+            public WinRect rcWork;
+            public uint dwFlags;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            const int WM_NCHITTEST = 0x0084;
+            const int WM_GETMINMAXINFO = 0x0024;
+            const int HTCLIENT = 1, HTLEFT = 10, HTRIGHT = 11, HTTOP = 12,
+                      HTTOPLEFT = 13, HTTOPRIGHT = 14, HTBOTTOM = 15,
+                      HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
+            if (msg == WM_GETMINMAXINFO)
+            {
+                try
+                {
+                    var mmi = (MinMaxInfo)Marshal.PtrToStructure(lParam, typeof(MinMaxInfo));
+                    IntPtr monitor = MonitorFromWindow(hwnd, 2); // MONITOR_DEFAULTTONEAREST
+                    var info = new MonitorInfo { cbSize = Marshal.SizeOf(typeof(MonitorInfo)) };
+                    if (GetMonitorInfo(monitor, ref info))
+                    {
+                        // Maximized = work area only, so the taskbar stays visible.
+                        mmi.ptMaxPosition.x = info.rcWork.left - info.rcMonitor.left;
+                        mmi.ptMaxPosition.y = info.rcWork.top - info.rcMonitor.top;
+                        mmi.ptMaxSize.x = info.rcWork.right - info.rcWork.left;
+                        mmi.ptMaxSize.y = info.rcWork.bottom - info.rcWork.top;
+                    }
+                    Marshal.StructureToPtr(mmi, lParam, true);
+                }
+                catch { }
+                handled = true;
+                return IntPtr.Zero;
+            }
+            if (msg == WM_NCHITTEST && WindowState != WindowState.Maximized)
+            {
+                int x = (short)(lParam.ToInt32() & 0xFFFF);
+                int y = (short)((lParam.ToInt32() >> 16) & 0xFFFF);
+                Point p = PointFromScreen(new Point(x, y));
+                const double edge = 8;
+                bool left = p.X <= edge, right = p.X >= ActualWidth - edge;
+                bool top = p.Y <= edge, bottom = p.Y >= ActualHeight - edge;
+                int hit = HTCLIENT;
+                if (top && left) hit = HTTOPLEFT;
+                else if (top && right) hit = HTTOPRIGHT;
+                else if (bottom && left) hit = HTBOTTOMLEFT;
+                else if (bottom && right) hit = HTBOTTOMRIGHT;
+                else if (left) hit = HTLEFT;
+                else if (right) hit = HTRIGHT;
+                else if (top) hit = HTTOP;
+                else if (bottom) hit = HTBOTTOM;
+                if (hit != HTCLIENT)
+                {
+                    handled = true;
+                    return (IntPtr)hit;
+                }
+            }
+            return IntPtr.Zero;
+        }
+
+        // ---------- Custom title bar ----------
+
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                ToggleMaximize();
+                return;
+            }
+            if (e.LeftButton == MouseButtonState.Pressed)
+                DragMove();
+        }
+
+        private void ToggleMaximize()
+        {
+            WindowState = WindowState == WindowState.Maximized
+                ? WindowState.Normal : WindowState.Maximized;
+        }
+
+        private void TitleMin_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState.Minimized;
+        }
+
+        private void TitleMax_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleMaximize();
+        }
+
+        private void TitleClose_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+
+        private void MainWindow_StateChanged(object sender, EventArgs e)
+        {
+            bool max = WindowState == WindowState.Maximized;
+            if (WindowBorder != null)
+            {
+                // Square corners when maximized (rounded corners would show
+                // the desktop through the gaps at the screen edges).
+                WindowBorder.CornerRadius = max ? new CornerRadius(0) : new CornerRadius(8);
+                WindowBorder.BorderThickness = max ? new Thickness(0) : new Thickness(1);
+            }
+            if (TitleMaxButton != null)
+            {
+                TitleMaxButton.Content = max ? "\uE923" : "\uE922"; // restore : maximize
+                TitleMaxButton.ToolTip = max ? "Restore" : "Maximize";
             }
         }
 
@@ -1330,7 +1473,7 @@ namespace SarahsToolkit
         private void RenderHealthScore(int score, List<Tuple<string, string>> fixes)
         {
             if (HealthScoreNum == null) return;
-            HealthScoreNum.Text = score.ToString();
+            AnimateHealthScore(score);
             string hex = score >= 80 ? "#4CAF50" : score >= 60 ? "#F0A832" : "#EF5350";
             HealthScoreNum.Foreground =
                 new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
@@ -1355,6 +1498,47 @@ namespace SarahsToolkit
                 btn.Click += HealthFix_Click;
                 HealthFixesPanel.Children.Add(btn);
             }
+        }
+
+        // ---------- Animated health score ----------
+
+        private DispatcherTimer _scoreTimer;
+        private int _scoreAnimFrom, _scoreAnimTo;
+        private DateTime _scoreAnimStart;
+        private const int ScoreAnimMs = 600;
+
+        private void AnimateHealthScore(int to)
+        {
+            int from = 0;
+            if (HealthScoreNum != null && int.TryParse(HealthScoreNum.Text, out int cur))
+                from = cur;
+            if (from == to)
+            {
+                if (HealthScoreNum != null) HealthScoreNum.Text = to.ToString();
+                return;
+            }
+            _scoreAnimFrom = from;
+            _scoreAnimTo = to;
+            _scoreAnimStart = DateTime.UtcNow;
+            if (_scoreTimer == null)
+            {
+                _scoreTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+                _scoreTimer.Tick += (s, e) =>
+                {
+                    double t = (DateTime.UtcNow - _scoreAnimStart).TotalMilliseconds / ScoreAnimMs;
+                    if (t >= 1)
+                    {
+                        _scoreTimer.Stop();
+                        if (HealthScoreNum != null) HealthScoreNum.Text = _scoreAnimTo.ToString();
+                        return;
+                    }
+                    // Ease-out: fast start, gentle landing.
+                    double eased = 1 - Math.Pow(1 - t, 3);
+                    int val = _scoreAnimFrom + (int)Math.Round((_scoreAnimTo - _scoreAnimFrom) * eased);
+                    if (HealthScoreNum != null) HealthScoreNum.Text = val.ToString();
+                };
+            }
+            _scoreTimer.Start();
         }
 
         private void HealthFix_Click(object sender, RoutedEventArgs e)

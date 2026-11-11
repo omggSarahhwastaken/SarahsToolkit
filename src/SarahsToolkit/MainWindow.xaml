@@ -5,16 +5,55 @@
         Title="Sarah's Toolkit" Height="700" Width="1340"
         MinWidth="1120" MinHeight="600"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource DkBgBrush}">
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent">
+    <Border x:Name="WindowBorder" Background="{StaticResource DkBgBrush}"
+            BorderBrush="{StaticResource DkCardBorderBrush}" BorderThickness="1" CornerRadius="8">
     <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="36"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="92"/>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="280"/>
         </Grid.ColumnDefinitions>
 
+        <!-- ============ Custom title bar ============ -->
+        <Grid Grid.Row="0" Grid.ColumnSpan="3" Background="{StaticResource DkRailBrush}"
+              MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                <Border Width="22" Height="22" CornerRadius="6" Background="#1E1E26"
+                        BorderBrush="{StaticResource DkAccentBrush}" BorderThickness="1">
+                    <TextBlock Text="S" FontSize="12" FontWeight="Bold"
+                               Foreground="{StaticResource DkAccentHoverBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="Sarah's Toolkit" FontFamily="{StaticResource McFont}" FontSize="13"
+                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <Button Style="{StaticResource TitleBarButton}" Width="46" Height="36"
+                        FontFamily="Segoe MDL2 Assets" FontSize="10" Content="&#xE921;"
+                        Click="TitleMin_Click" ToolTip="Minimize"/>
+                <Button x:Name="TitleMaxButton" Style="{StaticResource TitleBarButton}" Width="46" Height="36"
+                        FontFamily="Segoe MDL2 Assets" FontSize="10" Content="&#xE922;"
+                        Click="TitleMax_Click" ToolTip="Maximize"/>
+                <Button Style="{StaticResource TitleBarCloseButton}" Width="46" Height="36"
+                        FontFamily="Segoe MDL2 Assets" FontSize="10" Content="&#xE8BB;"
+                        Click="TitleClose_Click" ToolTip="Close"/>
+            </StackPanel>
+            <Border Grid.ColumnSpan="3" BorderBrush="{StaticResource DkCardBorderBrush}"
+                    BorderThickness="0,0,0,1" VerticalAlignment="Bottom"/>
+        </Grid>
+
         <!-- ============ VRCX-style icon rail ============ -->
-        <Border Grid.Column="0" Background="{StaticResource DkRailBrush}"
+        <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource DkRailBrush}"
                 BorderBrush="{StaticResource DkCardBorderBrush}" BorderThickness="0,0,1,0">
             <DockPanel>
                 <Border DockPanel.Dock="Top" Width="44" Height="44" CornerRadius="12"
@@ -67,7 +106,7 @@
         </Border>
 
         <!-- ============ Main column ============ -->
-        <Grid Grid.Column="1">
+        <Grid Grid.Row="1" Grid.Column="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -1171,7 +1210,7 @@
         </Grid>
 
         <!-- ============ Right rail: upcoming game releases ============ -->
-        <Border Grid.Column="2" Background="{StaticResource DkRailBrush}"
+        <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource DkRailBrush}"
                 BorderBrush="{StaticResource DkCardBorderBrush}" BorderThickness="1,0,0,0">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="14,14,14,10">
@@ -1185,4 +1224,5 @@
             </DockPanel>
         </Border>
     </Grid>
+    </Border>
 </Window>
