@@ -22,6 +22,8 @@ namespace SarahsToolkit.Services
 
         private readonly object _gate = new object();
         private bool _sampling;
+        private DateTime _samplingSince = DateTime.MinValue;
+        private int _sampleGen;
         private bool _initialized;
         private bool _disposed;
 
@@ -156,10 +158,26 @@ namespace SarahsToolkit.Services
 
         public async Task SampleAsync()
         {
+            int myGen;
             lock (_gate)
             {
-                if (_sampling || _disposed) return;
+                if (_disposed) return;
+                if (_sampling)
+                {
+                    // A counter read can block indefinitely on a broken
+                    // driver/counter registry; if a sample has been stuck
+                    // for over 15s, abandon it instead of wedging the live
+                    // vitals (and the Memory card) forever.
+                    if ((DateTime.UtcNow - _samplingSince).TotalSeconds > 15)
+                    {
+                        _sampleGen++;
+                        _sampling = false;
+                    }
+                    else return;
+                }
                 _sampling = true;
+                _samplingSince = DateTime.UtcNow;
+                myGen = _sampleGen;
             }
             try
             {
@@ -239,6 +257,9 @@ namespace SarahsToolkit.Services
                 lock (_gate)
                 {
                     if (_disposed) return;
+                    // A sample abandoned by the watchdog (stale generation)
+                    // must not overwrite a newer sample's values.
+                    if (myGen != _sampleGen) return;
                     Cpu = cpu; Gpu = gpu; Ram = ram; Disk = disk; NetMbps = netMbps;
                     RamUsedGb = ramUsedGb; RamTotalGb = ramTotalGb;
                     _cpuHist.Push(cpu); _gpuHist.Push(gpu); _ramHist.Push(ram);
@@ -250,7 +271,7 @@ namespace SarahsToolkit.Services
             }
             finally
             {
-                lock (_gate) { _sampling = false; }
+                lock (_gate) { if (myGen == _sampleGen) _sampling = false; }
             }
         }
 

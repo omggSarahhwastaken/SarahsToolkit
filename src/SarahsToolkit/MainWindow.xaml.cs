@@ -347,12 +347,38 @@ namespace SarahsToolkit
             // Home dashboard: load on launch (Nav_Checked can fire before the pages
             // exist, so it can't be trusted to do the first load) and keep it live
             // with a 1-second refresh while Home is visible.
+            // Each step is independent: a failure in the snapshot, the feed or
+            // the timer must not take the others down (v2.7.7 left the feed
+            // empty and the live vitals stuck when startup aborted early).
+            // The timer starts first so the vitals run even if the snapshot
+            // or the feed is slow or fails.
             _dashboardLoaded = true;
-            await LoadDashboardAsync();
-            BuildGameFeed();
-            _dashTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _dashTimer.Tick += DashTimer_Tick;
-            _dashTimer.Start();
+            try
+            {
+                _dashTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                _dashTimer.Tick += DashTimer_Tick;
+                _dashTimer.Start();
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Live vitals unavailable: " + ex.Message);
+            }
+            try
+            {
+                await LoadDashboardAsync();
+            }
+            catch (Exception ex)
+            {
+                SetStatus("System info unavailable: " + ex.Message);
+            }
+            try
+            {
+                BuildGameFeed();
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Game feed unavailable: " + ex.Message);
+            }
 
             // Open on the user's chosen page.
             if (_settings.Settings.DefaultPage == "Last" &&
@@ -528,6 +554,12 @@ namespace SarahsToolkit
                 PerfTrackEnabled.IsChecked = _settings.Settings.LogPerformance;
                 UpdatePerfBaselineLabel();
             }
+            catch (Exception ex)
+            {
+                // Applying settings must never break launch: the dashboard,
+                // the game feed and the live vitals all start after this.
+                SetStatus("Settings couldn't be fully applied: " + ex.Message);
+            }
             finally { _applyingSettings = false; }
         }
 
@@ -569,38 +601,45 @@ namespace SarahsToolkit
 
         private void ApplyAccent()
         {
-            string hex = _settings.Settings.AccentColor;
-            AccentTheme theme = null;
-            foreach (var t in AccentThemes)
-                if (string.Equals(t.Base, hex, StringComparison.OrdinalIgnoreCase))
-                {
-                    theme = t;
-                    break;
-                }
-            if (theme == null)
+            // The accent is cosmetic: if anything goes wrong here, keep the
+            // default purple and never let it break launch (ApplySettings
+            // runs before the dashboard, the game feed and the live vitals).
+            try
             {
-                // Unknown or corrupt value: fall back to purple and fix the
-                // stored setting so it doesn't keep failing.
-                theme = AccentThemes[0];
-                _settings.Settings.AccentColor = theme.Base;
-                _settings.Save();
+                string hex = _settings.Settings.AccentColor;
+                AccentTheme theme = null;
+                foreach (var t in AccentThemes)
+                    if (string.Equals(t.Base, hex, StringComparison.OrdinalIgnoreCase))
+                    {
+                        theme = t;
+                        break;
+                    }
+                if (theme == null)
+                {
+                    // Unknown or corrupt value: fall back to purple and fix the
+                    // stored setting so it doesn't keep failing.
+                    theme = AccentThemes[0];
+                    _settings.Settings.AccentColor = theme.Base;
+                    _settings.Save();
+                }
+                // Mutating the shared brushes re-themes every control that uses
+                // them (buttons, toggles, nav indicator, gauge, selection).
+                var res = Application.Current.Resources;
+                SetBrushColor(res, "DkAccentBrush", theme.Base);
+                SetBrushColor(res, "DkAccentHoverBrush", theme.Hover);
+                SetBrushColor(res, "DkAccentDeepBrush", theme.Deep);
+                SetBrushColor(res, "DkAccentLightBrush", theme.Light);
+                SetBrushColor(res, "DkSelectionBrush", theme.Selection);
+                res["DkAccent"] = ParseColor(theme.Base);
+                res["DkAccentHover"] = ParseColor(theme.Hover);
+                res["DkAccentDeep"] = ParseColor(theme.Deep);
+                res["DkAccentLight"] = ParseColor(theme.Light);
+                res["DkSelection"] = ParseColor(theme.Selection);
+                // The CPU sparkline uses a hardcoded purple in XAML; follow the accent.
+                if (VitalCpuGraph != null) VitalCpuGraph.LineColor = ParseColor(theme.Base);
+                UpdateAccentSwatches(theme.Base);
             }
-            // Mutating the shared brushes re-themes every control that uses
-            // them (buttons, toggles, nav indicator, gauge, selection).
-            var res = Application.Current.Resources;
-            SetBrushColor(res, "DkAccentBrush", theme.Base);
-            SetBrushColor(res, "DkAccentHoverBrush", theme.Hover);
-            SetBrushColor(res, "DkAccentDeepBrush", theme.Deep);
-            SetBrushColor(res, "DkAccentLightBrush", theme.Light);
-            SetBrushColor(res, "DkSelectionBrush", theme.Selection);
-            res["DkAccent"] = ParseColor(theme.Base);
-            res["DkAccentHover"] = ParseColor(theme.Hover);
-            res["DkAccentDeep"] = ParseColor(theme.Deep);
-            res["DkAccentLight"] = ParseColor(theme.Light);
-            res["DkSelection"] = ParseColor(theme.Selection);
-            // The CPU sparkline uses a hardcoded purple in XAML; follow the accent.
-            if (VitalCpuGraph != null) VitalCpuGraph.LineColor = ParseColor(theme.Base);
-            UpdateAccentSwatches(theme.Base);
+            catch { /* default purple stays; the accent picker can retry */ }
         }
 
         private static void SetBrushColor(ResourceDictionary res, string key, string hex)
@@ -1640,9 +1679,18 @@ namespace SarahsToolkit
                     GameFeedPanel.Children.Add(card);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // The sidebar must never break the app.
+                // The sidebar must never break the app, but a silent empty
+                // rail looks like "no games" — say so instead.
+                GameFeedCount.Text = "Couldn't load the feed";
+                GameFeedPanel.Children.Add(new TextBlock
+                {
+                    Text = "The game feed failed to load (" + ex.Message + ").",
+                    FontSize = 12,
+                    Foreground = (Brush)FindResource("DkMutedBrush"),
+                    TextWrapping = TextWrapping.Wrap
+                });
             }
         }
 
