@@ -100,30 +100,51 @@ namespace SarahsToolkit
 
             base.OnStartup(e);
 
-            // Splash while the main window builds and loads (tweak/debloat/
-            // service lists, settings, dashboard). It closes when startup
-            // work finishes, or after 8 seconds at the latest so a slow
-            // step can't hold it forever.
+            // Splash while the main window builds and loads. It closes once
+            // BOTH are true: startup work finished AND the video played
+            // through, so the draw-in is actually seen instead of being
+            // cut off the moment the app is ready. The 8-second cap closes
+            // it no matter what, so a slow step or a stuck video can't
+            // hold the app hostage.
             var splash = new SplashWindow();
             splash.Show();
+            bool startupDone = false;
+            bool videoDone = false;
             var splashTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(8)
             };
+            void TryCloseSplash()
+            {
+                if (!startupDone || !videoDone) return;
+                splashTimer.Stop();
+                try { splash.Close(); } catch { }
+            }
             splashTimer.Tick += (s, _) =>
             {
                 splashTimer.Stop();
                 try { splash.Close(); } catch { }
             };
             splashTimer.Start();
-            var main = new MainWindow();
-            main.StartupComplete += (s, _) =>
+            splash.VideoFinished += (s, _) => { videoDone = true; TryCloseSplash(); };
+
+            // Create the main window on a background-priority callback so
+            // the splash gets to render and start the video before the
+            // heavy main-window load begins.
+            Dispatcher.BeginInvoke(new Action(() =>
             {
-                splashTimer.Stop();
-                try { splash.Close(); } catch { }
-            };
-            MainWindow = main;
-            main.Show();
+                try
+                {
+                    var main = new MainWindow();
+                    main.StartupComplete += (s, _) => { startupDone = true; TryCloseSplash(); };
+                    MainWindow = main;
+                    main.Show();
+                }
+                catch
+                {
+                    Shutdown();
+                }
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
     }
 }
