@@ -31,6 +31,7 @@ namespace SarahsToolkit
     {
         private readonly TweakService _tweaks = new TweakService();
         private readonly CleanupService _cleanup = new CleanupService();
+        private readonly CleanHistoryService _cleanHistory = new CleanHistoryService();
         private readonly DiagnosticsService _diag = new DiagnosticsService();
         private List<StartupEntry> _startupEntries = new List<StartupEntry>();
         private readonly DebloatService _debloat = new DebloatService();
@@ -532,6 +533,10 @@ namespace SarahsToolkit
             // Startup work is done: the splash can close (it also has an
             // 8-second cap in App, so a slow step can't hold it forever).
             try { StartupComplete?.Invoke(this, EventArgs.Empty); } catch { }
+
+            // Scheduled cleaning runs after the splash has closed, in the
+            // background, so it never holds up launch.
+            _ = RunScheduledCleanIfDueAsync();
         }
 
         /// <summary>Raised when the first-launch work in MainWindow_Loaded finishes.</summary>
@@ -549,6 +554,7 @@ namespace SarahsToolkit
             PageDashboard.Visibility = Visibility.Collapsed;
             PageHealth.Visibility = Visibility.Collapsed;
             PageCleanup.Visibility = Visibility.Collapsed;
+            PageSchedule.Visibility = Visibility.Collapsed;
             PageDebloat.Visibility = Visibility.Collapsed;
             PageServices.Visibility = Visibility.Collapsed;
             PageOptimize.Visibility = Visibility.Collapsed;
@@ -591,6 +597,12 @@ namespace SarahsToolkit
                     PageCleanup.Visibility = Visibility.Visible;
                     PageTitle.Text = "Cleanup";
                     PageSubtitle.Text = "Temporary files and caches";
+                    break;
+                case "NavSchedule":
+                    PageSchedule.Visibility = Visibility.Visible;
+                    PageTitle.Text = "Schedule";
+                    PageSubtitle.Text = "Automatic cleaning and freed space";
+                    RefreshSchedulePage();
                     break;
                 case "NavDebloat":
                     PageDebloat.Visibility = Visibility.Visible;
@@ -861,6 +873,7 @@ namespace SarahsToolkit
             switch (pageName)
             {
                 case "Cleanup": target = NavCleanup; break;
+                case "Schedule": target = NavSchedule; break;
                 case "Debloat": target = NavDebloat; break;
                 case "Services": target = NavServices; break;
                 case "Optimize": target = NavOptimize; break;
@@ -2507,22 +2520,26 @@ namespace SarahsToolkit
             if (_cleanCts != null) _cleanCts.Cancel();
         }
 
-        private async Task CleanSelectedAsync()
+        private async Task CleanSelectedAsync(bool silent = false)
         {
             var selected = _analyses.Where(a => a.Box.IsChecked == true && a.Bytes > 0).ToList();
             if (selected.Count == 0)
             {
-                MessageBox.Show("Tick at least one category with files to clean first. Press Analyze if you haven't yet.",
-                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
+                if (!silent)
+                    MessageBox.Show("Tick at least one category with files to clean first. Press Analyze if you haven't yet.",
+                        "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string mode = ModeQuick.IsChecked == true ? "Quick Clean" : "Full Clean";
-            var confirm = MessageBox.Show(
-                mode + " will delete temporary and cache files in " + selected.Count +
-                " categor" + (selected.Count == 1 ? "y" : "ies") +
-                " (" + FormatBytes(selected.Sum(a => a.Bytes)) + ").\n\nYour personal files are not touched. Continue?",
-                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (confirm != MessageBoxResult.Yes) return;
+            if (!silent)
+            {
+                var confirm = MessageBox.Show(
+                    mode + " will delete temporary and cache files in " + selected.Count +
+                    " categor" + (selected.Count == 1 ? "y" : "ies") +
+                    " (" + FormatBytes(selected.Sum(a => a.Bytes)) + ").\n\nYour personal files are not touched. Continue?",
+                    "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (confirm != MessageBoxResult.Yes) return;
+            }
 
             SetCleanUiRunning(true);
             _cleanCts = new CancellationTokenSource();
@@ -2644,9 +2661,13 @@ namespace SarahsToolkit
                 _reportCats = new List<Tuple<string, long, long, long, string>>(perCat);
 
                 SetStatus("Clean complete: " + FormatBytes(bytesFreed) + " freed.");
-                MessageBox.Show(mode + " complete.\n" + FormatBytes(bytesFreed) + " freed in " +
-                    filesDeleted + " files.", "Sarah's Toolkit", MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                // Record it for the Schedule page stats (this week / all time).
+                _cleanHistory.Record(bytesFreed, silent ? "Scheduled" : mode);
+                RefreshSchedulePage();
+                if (!silent)
+                    MessageBox.Show(mode + " complete.\n" + FormatBytes(bytesFreed) + " freed in " +
+                        filesDeleted + " files.", "Sarah's Toolkit", MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                 // Separate from the clean above: a re-analyze failure (e.g.
                 // a missing cleanup.json) must not be reported as
                 // "Clean failed" when the clean itself succeeded.
@@ -2666,8 +2687,9 @@ namespace SarahsToolkit
             catch (Exception ex)
             {
                 SetStatus("Clean failed.");
-                MessageBox.Show("Clean failed:\n" + ex.Message,
-                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                if (!silent)
+                    MessageBox.Show("Clean failed:\n" + ex.Message,
+                        "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             finally
             {
@@ -2681,6 +2703,142 @@ namespace SarahsToolkit
             CleanButton.IsEnabled = !running;
             CancelCleanButton.IsEnabled = running;
             if (running) ProgressCard.Visibility = Visibility.Visible;
+        }
+
+        // ---------- Scheduled cleaning ----------
+
+        private static readonly string[] ScheduleOptions =
+            { "Off", "Startup", "Daily", "Weekly", "Monthly" };
+
+        private void ScheduleFrequency_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_applyingSettings || ScheduleFrequencyCombo.SelectedIndex < 0) return;
+            _settings.Settings.ScheduledClean = ScheduleOptions[ScheduleFrequencyCombo.SelectedIndex];
+            _settings.Save();
+            RefreshSchedulePage();
+        }
+
+        private void RefreshSchedulePage()
+        {
+            if (ScheduleFrequencyCombo == null) return;
+            int idx = Array.IndexOf(ScheduleOptions, _settings.Settings.ScheduledClean);
+            if (idx < 0) idx = 0;
+            if (ScheduleFrequencyCombo.SelectedIndex != idx)
+                ScheduleFrequencyCombo.SelectedIndex = idx;
+
+            FreedWeekValue.Text = FormatBytes(_cleanHistory.FreedThisWeek);
+            FreedAllTimeValue.Text = FormatBytes(_cleanHistory.FreedAllTime);
+
+            var last = _cleanHistory.LastClean;
+            ScheduleLastClean.Text = last == null
+                ? "No cleans recorded yet."
+                : "Last clean: " + last.Timestamp.ToString("MMM d, h:mm tt") +
+                  " · " + FormatBytes(last.BytesFreed) + " · " + last.Kind;
+
+            string freq = _settings.Settings.ScheduledClean;
+            DateTime lastRun;
+            bool hasLastRun = DateTime.TryParse(_settings.Settings.LastScheduledClean, out lastRun);
+            if (freq == "Off")
+                ScheduleStatus.Text = "Scheduled cleaning is off.";
+            else if (!hasLastRun)
+                ScheduleStatus.Text = "Never run on a schedule yet — first run on the next launch.";
+            else if (freq == "Startup")
+                ScheduleStatus.Text = "Last scheduled clean: " + lastRun.ToString("MMM d, h:mm tt") +
+                    " · Runs again every time the app starts.";
+            else
+            {
+                DateTime next = freq == "Daily" ? lastRun.AddDays(1)
+                    : freq == "Weekly" ? lastRun.AddDays(7) : lastRun.AddDays(30);
+                ScheduleStatus.Text = "Last scheduled clean: " + lastRun.ToString("MMM d, h:mm tt") +
+                    " · Next run around " + next.ToString("MMM d, h:mm tt") + ".";
+            }
+
+            // Recent cleans, newest first (up to 8).
+            ScheduleHistoryList.Children.Clear();
+            var muted = (Brush)FindResource("DkMutedBrush");
+            var recent = _cleanHistory.Records.Reverse().Take(8).ToList();
+            if (recent.Count == 0)
+            {
+                ScheduleHistoryList.Children.Add(new TextBlock
+                {
+                    Text = "Nothing here yet — run a clean and it'll show up.",
+                    Foreground = muted
+                });
+            }
+            else
+            {
+                foreach (var r in recent)
+                {
+                    var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    row.Children.Add(new TextBlock
+                    {
+                        Text = r.Timestamp.ToString("MMM d, h:mm tt") + " · " + r.Kind,
+                        TextWrapping = TextWrapping.Wrap
+                    });
+                    var amt = new TextBlock
+                    {
+                        Text = FormatBytes(r.BytesFreed),
+                        Foreground = muted,
+                        Margin = new Thickness(16, 0, 0, 0)
+                    };
+                    Grid.SetColumn(amt, 1);
+                    row.Children.Add(amt);
+                    ScheduleHistoryList.Children.Add(row);
+                }
+            }
+        }
+
+        /// <summary>Decides whether a scheduled clean is due, and runs it
+        /// silently in the background if so. Called after the splash has
+        /// closed so it never holds up launch.</summary>
+        private async Task RunScheduledCleanIfDueAsync()
+        {
+            string freq = _settings.Settings.ScheduledClean;
+            if (string.IsNullOrEmpty(freq) || freq == "Off") return;
+
+            if (freq != "Startup")
+            {
+                DateTime lastRun;
+                if (DateTime.TryParse(_settings.Settings.LastScheduledClean, out lastRun))
+                {
+                    double days = (DateTime.Now - lastRun).TotalDays;
+                    if (freq == "Daily" && days < 1) return;
+                    if (freq == "Weekly" && days < 7) return;
+                    if (freq == "Monthly" && days < 30) return;
+                }
+            }
+
+            await RunScheduledCleanAsync();
+        }
+
+        private async void ScheduleRunNow_Click(object sender, RoutedEventArgs e)
+        {
+            await RunScheduledCleanAsync();
+        }
+
+        private async Task RunScheduledCleanAsync()
+        {
+            if (ScheduleRunNowButton != null) ScheduleRunNowButton.IsEnabled = false;
+            try
+            {
+                // AnalyzeAsync pops a dialog when the cleanup data can't be
+                // loaded; a scheduled run must stay silent, so check first.
+                if (_cleanup.LoadCategories().Count == 0) return;
+                ModeQuick.IsChecked = true;
+                try { await AnalyzeAsync(); }
+                catch { return; }
+                if (_analyses == null || _analyses.Count == 0) return;
+                await CleanSelectedAsync(silent: true);
+                _settings.Settings.LastScheduledClean = DateTime.Now.ToString("o");
+                _settings.Save();
+                RefreshSchedulePage();
+            }
+            finally
+            {
+                if (ScheduleRunNowButton != null) ScheduleRunNowButton.IsEnabled = true;
+            }
         }
 
         // ---------- Duplicate finder (Tools > Files) ----------

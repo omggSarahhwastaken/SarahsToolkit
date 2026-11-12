@@ -78,6 +78,8 @@
                                      Content="Health" Tag="&#xEB51;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavCleanup" Style="{StaticResource NavRailButton}"
                                      Content="Cleanup" Tag="&#xE74D;" Checked="Nav_Checked"/>
+                        <RadioButton x:Name="NavSchedule" Style="{StaticResource NavRailButton}"
+                                     Content="Schedule" Tag="&#xE787;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavDebloat" Style="{StaticResource NavRailButton}"
                                      Content="Debloat" Tag="&#xE711;" Checked="Nav_Checked"/>
                         <RadioButton x:Name="NavServices" Style="{StaticResource NavRailButton}"
@@ -690,6 +692,63 @@
 
                             <TextBlock Style="{StaticResource H2}" Text="Log"/>
                             <ListBox x:Name="CleanLog" Height="170"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- ======== Schedule ======== -->
+                <Grid x:Name="PageSchedule" Visibility="Collapsed">
+                    <ScrollViewer>
+                        <StackPanel Margin="20">
+                            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource H2}" Text="Scheduled cleaning"/>
+                                    <TextBlock Style="{StaticResource Muted12}" Margin="0,0,0,12"
+                                               Text="Runs Quick Clean automatically in the background — the fast, safe temp locations only. It never touches your personal files."/>
+                                    <ComboBox x:Name="ScheduleFrequencyCombo" Width="260" HorizontalAlignment="Left"
+                                              SelectionChanged="ScheduleFrequency_Changed">
+                                        <ComboBoxItem Content="Off"/>
+                                        <ComboBoxItem Content="Every time the app starts"/>
+                                        <ComboBoxItem Content="Every day"/>
+                                        <ComboBoxItem Content="Every week"/>
+                                        <ComboBoxItem Content="Every month"/>
+                                    </ComboBox>
+                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                        <Button x:Name="ScheduleRunNowButton" Content="Run now" Width="110"
+                                                Style="{StaticResource AccentButton}" Click="ScheduleRunNow_Click"/>
+                                        <TextBlock x:Name="ScheduleStatus" VerticalAlignment="Center" Margin="16,0,0,0"
+                                                   Foreground="{StaticResource DkMutedBrush}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource H2}" Text="Freed space"/>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock x:Name="FreedWeekValue" FontSize="28" FontWeight="Bold"
+                                                       Foreground="{StaticResource DkAccentHoverBrush}" Text="0.0 B"/>
+                                            <TextBlock Style="{StaticResource Muted12}" Text="This week"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock x:Name="FreedAllTimeValue" FontSize="28" FontWeight="Bold"
+                                                       Foreground="{StaticResource DkAccentHoverBrush}" Text="0.0 B"/>
+                                            <TextBlock Style="{StaticResource Muted12}" Text="All time"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock x:Name="ScheduleLastClean" Margin="0,12,0,0"
+                                               Foreground="{StaticResource DkMutedBrush}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Style="{StaticResource H2}" Text="Recent cleans"/>
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel x:Name="ScheduleHistoryList"/>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

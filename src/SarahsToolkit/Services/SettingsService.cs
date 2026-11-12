@@ -173,7 +173,8 @@ namespace SarahsToolkit.Services
         {
             "GuiScale", "MinimizeToTray", "CheckUpdatesOnLaunch", "StartWithWindows",
             "DefaultPage", "LastPage", "TempFahrenheit", "LogPerformance", "IdleTempC",
-            "BootBaselinePreset", "BootBaselineAvgSec", "BootBaselineBootId", "BootBaselineDate"
+            "BootBaselinePreset", "BootBaselineAvgSec", "BootBaselineBootId", "BootBaselineDate",
+            "ScheduledClean", "LastScheduledClean"
         };
 
         private static bool LooksLikeSettingsFile(string raw)
@@ -205,6 +206,9 @@ namespace SarahsToolkit.Services
             var s = Settings;
             if (s.GuiScale < 0.8 || s.GuiScale > 1.5) s.GuiScale = 1.0;
             if (s.DefaultPage != "Home" && s.DefaultPage != "Last") s.DefaultPage = "Home";
+            if (s.ScheduledClean != "Off" && s.ScheduledClean != "Startup" &&
+                s.ScheduledClean != "Daily" && s.ScheduledClean != "Weekly" &&
+                s.ScheduledClean != "Monthly") s.ScheduledClean = "Off";
             if (string.IsNullOrWhiteSpace(s.LastPage)) s.LastPage = "Home";
         }
     }
@@ -219,6 +223,11 @@ namespace SarahsToolkit.Services
         public string LastPage { get; set; } = "Home";
         public bool TempFahrenheit { get; set; } = false;
         public bool LogPerformance { get; set; } = true;
+        // Scheduled cleaning: Off, Startup (every app launch), Daily,
+        // Weekly, Monthly. Runs Quick Clean silently in the background.
+        public string ScheduledClean { get; set; } = "Off";
+        // Last scheduled clean (ISO 8601 local time, "" = never).
+        public string LastScheduledClean { get; set; } = "";
         // Idle temperature baseline (Celsius, -1 = not recorded). Recorded on
         // demand from the Tools page; gaming temps are shown against it.
         public int IdleTempC { get; set; } = -1;
