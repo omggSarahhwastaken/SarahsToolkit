@@ -127,28 +127,32 @@ namespace SarahsToolkit
         private void RestoreWindowGeometry()
         {
             var s = _settings.Settings;
-            if (!s.WindowGeometrySaved) return;
+            var wa = SystemParameters.WorkArea; // primary monitor, in DIPs
+            if (!s.WindowGeometrySaved)
+            {
+                // No saved position: center on the primary monitor.
+                // (CenterScreen would center on the monitor with the
+                // mouse cursor instead — the splash did exactly that.)
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
+                Top = (SystemParameters.PrimaryScreenHeight - Height) / 2;
+                return;
+            }
             double w = Math.Max(s.WindowWidth, MinWidth);
             double h = Math.Max(s.WindowHeight, MinHeight);
-            // Only restore if the saved position is on a screen that still
-            // exists (e.g. the user unplugged a monitor since last launch).
-            var rect = new Rect(s.WindowLeft, s.WindowTop, w, h);
-            bool onScreen = false;
-            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
-            {
-                var wa = screen.WorkingArea;
-                if (new Rect(wa.Left, wa.Top, wa.Width, wa.Height).IntersectsWith(rect))
-                {
-                    onScreen = true;
-                    break;
-                }
-            }
-            if (!onScreen) return;
+            // All windows start on the main monitor: clamp the saved
+            // position into the primary monitor's working area (keeps
+            // the size). A window last closed on the other monitor
+            // comes back on the main one instead.
+            w = Math.Min(w, wa.Width);
+            h = Math.Min(h, wa.Height);
+            double left = Math.Max(wa.Left, Math.Min(s.WindowLeft, wa.Right - w));
+            double top = Math.Max(wa.Top, Math.Min(s.WindowTop, wa.Bottom - h));
             WindowStartupLocation = WindowStartupLocation.Manual;
             Width = w;
             Height = h;
-            Left = s.WindowLeft;
-            Top = s.WindowTop;
+            Left = left;
+            Top = top;
             if (s.WindowMaximized) WindowState = WindowState.Maximized;
         }
 

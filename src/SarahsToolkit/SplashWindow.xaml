@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Sarah's Toolkit — Loading" Width="360" Height="360"
         WindowStyle="None" Background="Black"
-        WindowStartupLocation="CenterScreen" Topmost="True"
+        WindowStartupLocation="Manual" Topmost="True"
         ShowInTaskbar="False" ResizeMode="NoResize">
     <Window.Triggers>
         <EventTrigger RoutedEvent="Window.Loaded">

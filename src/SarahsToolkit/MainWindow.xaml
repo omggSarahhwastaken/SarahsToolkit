@@ -4,7 +4,7 @@
         xmlns:stk="clr-namespace:SarahsToolkit.Controls"
         Title="Sarah's Toolkit" Height="700" Width="1340"
         MinWidth="1120" MinHeight="600"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="Manual"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent">
     <Border x:Name="WindowBorder" Background="{StaticResource DkBgBrush}"
             BorderBrush="{StaticResource DkCardBorderBrush}" BorderThickness="1" CornerRadius="8">

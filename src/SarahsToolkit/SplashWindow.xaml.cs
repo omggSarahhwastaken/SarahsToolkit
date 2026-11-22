@@ -11,6 +11,14 @@ namespace SarahsToolkit
         public SplashWindow()
         {
             InitializeComponent();
+            // CenterScreen centers on the monitor with the mouse cursor —
+            // the splash followed the mouse to the other monitor. Center
+            // on the primary monitor explicitly: all windows start on
+            // the main monitor. SystemParameters is in DIPs and always
+            // refers to the primary display.
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
+            Top = (SystemParameters.PrimaryScreenHeight - Height) / 2;
         }
 
         private void DrawInStoryboard_Completed(object sender, EventArgs e)
