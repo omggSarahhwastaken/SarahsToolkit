@@ -101,22 +101,22 @@ namespace SarahsToolkit
             base.OnStartup(e);
 
             // Splash while the main window builds and loads. It closes once
-            // BOTH are true: startup work finished AND the video played
-            // through, so the draw-in is actually seen instead of being
-            // cut off the moment the app is ready. The 8-second cap closes
-            // it no matter what, so a slow step or a stuck video can't
-            // hold the app hostage.
+            // BOTH are true: startup work finished AND the draw-in animation
+            // played through, so the animation is actually seen instead of
+            // being cut off the moment the app is ready. The 8-second cap
+            // closes it no matter what, so a slow step can't hold the app
+            // hostage.
             var splash = new SplashWindow();
             splash.Show();
             bool startupDone = false;
-            bool videoDone = false;
+            bool animationDone = false;
             var splashTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(8)
             };
             void TryCloseSplash()
             {
-                if (!startupDone || !videoDone) return;
+                if (!startupDone || !animationDone) return;
                 splashTimer.Stop();
                 try { splash.Close(); } catch { }
             }
@@ -126,7 +126,7 @@ namespace SarahsToolkit
                 try { splash.Close(); } catch { }
             };
             splashTimer.Start();
-            splash.VideoFinished += (s, _) => { videoDone = true; TryCloseSplash(); };
+            splash.AnimationFinished += (s, _) => { animationDone = true; TryCloseSplash(); };
 
             // Create the main window on a background-priority callback so
             // the splash gets to render and start the video before the

@@ -5,12 +5,34 @@
         WindowStyle="None" Background="Black"
         WindowStartupLocation="CenterScreen" Topmost="True"
         ShowInTaskbar="False" ResizeMode="NoResize">
-    <!-- Deliberately NOT transparent: video does not play in a
-         transparent (layered) window, it freezes on the first frame. -->
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="Window.Loaded">
+            <BeginStoryboard>
+                <!-- Draw-in, rebuilt from the startup video's own frames.
+                     The frames are cumulative (each adds more lines), so
+                     fading them in one after another reads as the toolbox
+                     drawing itself in. Opacity animations run on the render
+                     thread, so they keep playing even while the main window
+                     is loading — unlike the video player, which stalled. -->
+                <Storyboard Completed="DrawInStoryboard_Completed">
+                    <DoubleAnimation Storyboard.TargetName="Stage1" Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1" Duration="0:0:0.6" BeginTime="0:0:0.2"/>
+                    <DoubleAnimation Storyboard.TargetName="Stage2" Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1" Duration="0:0:0.6" BeginTime="0:0:0.8"/>
+                    <DoubleAnimation Storyboard.TargetName="Stage3" Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1" Duration="0:0:0.6" BeginTime="0:0:1.4"/>
+                    <DoubleAnimation Storyboard.TargetName="Stage4" Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1" Duration="0:0:0.6" BeginTime="0:0:2.0"/>
+                    <DoubleAnimation Storyboard.TargetName="Stage5" Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1" Duration="0:0:0.6" BeginTime="0:0:2.6"/>
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </Window.Triggers>
     <Border Background="Black" BorderBrush="{StaticResource DkAccentBrush}"
             BorderThickness="1" CornerRadius="0">
         <Grid>
-            <!-- Static fallback: shown if the video can't play. -->
+            <!-- Static fallback: shown if the frames can't load. -->
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Border Width="52" Height="52" CornerRadius="14" Background="#1E1E26"
                         BorderBrush="{StaticResource DkAccentBrush}" BorderThickness="1.5"
@@ -24,12 +46,12 @@
                 <TextBlock Text="Loading…" FontSize="12" Foreground="{StaticResource DkMutedBrush}"
                            HorizontalAlignment="Center"/>
             </StackPanel>
-            <!-- Animated startup icon: neon toolbox drawing itself in. -->
-            <MediaElement x:Name="SplashVideo" Stretch="Uniform" Volume="0"
-                          LoadedBehavior="Manual" UnloadedBehavior="Stop"
-                          MediaOpened="SplashVideo_MediaOpened"
-                          MediaEnded="SplashVideo_MediaEnded"
-                          MediaFailed="SplashVideo_MediaFailed"/>
+            <!-- Animated startup icon: keyframes from the video. -->
+            <Image x:Name="Stage1" Source="Assets/frames/stage1.png" Stretch="Uniform" Opacity="0"/>
+            <Image x:Name="Stage2" Source="Assets/frames/stage2.png" Stretch="Uniform" Opacity="0"/>
+            <Image x:Name="Stage3" Source="Assets/frames/stage3.png" Stretch="Uniform" Opacity="0"/>
+            <Image x:Name="Stage4" Source="Assets/frames/stage4.png" Stretch="Uniform" Opacity="0"/>
+            <Image x:Name="Stage5" Source="Assets/frames/stage5.png" Stretch="Uniform" Opacity="0"/>
         </Grid>
     </Border>
 </Window>
