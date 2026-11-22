@@ -65,6 +65,9 @@ namespace SarahsToolkit
         private readonly Dictionary<string, TextBlock> _presetRatingLabels =
             new Dictionary<string, TextBlock>();
         private List<DebloatApp> _debloatApps = new List<DebloatApp>();
+        // True when the debloat list failed to load (finding 9): the
+        // Debloat page must say so instead of "all good, none installed".
+        private bool _debloatLoadFailed;
         private List<ServiceDefinition> _serviceDefs = new List<ServiceDefinition>();
         private readonly List<Tuple<CheckBox, TextBlock>> _serviceRows = new List<Tuple<CheckBox, TextBlock>>();
         private bool _servicesRefreshed = false;
@@ -80,6 +83,9 @@ namespace SarahsToolkit
         private DispatcherTimer _dashTimer;
         private bool _dashboardLoading;
         private CancellationTokenSource _cleanCts;
+        // True while an analyze or clean is running (finding 4): a
+        // scheduled clean must not start on top of a manual one.
+        private bool _cleanRunning;
         private bool _buildingUi;
 
         private class CategoryAnalysis
@@ -351,7 +357,22 @@ namespace SarahsToolkit
                 return;
             }
             if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                if (WindowState == WindowState.Maximized)
+                {
+                    // Native behaviour: dragging a maximized window
+                    // restores it under the cursor and follows the drag
+                    // (how you move it to another monitor). DragMove
+                    // alone does nothing when maximized (finding 7).
+                    Point rel = e.GetPosition(this);
+                    Point screen = PointToScreen(rel);
+                    double fracX = ActualWidth > 0 ? rel.X / ActualWidth : 0.5;
+                    WindowState = WindowState.Normal;
+                    Left = screen.X - RestoreBounds.Width * fracX;
+                    Top = screen.Y - rel.Y;
+                }
                 DragMove();
+            }
         }
 
         private void ToggleMaximize()
@@ -452,6 +473,7 @@ namespace SarahsToolkit
             }
             catch (Exception ex)
             {
+                _debloatLoadFailed = true;
                 MessageBox.Show("Failed to load debloat list: " + ex.Message,
                     "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
@@ -2420,7 +2442,25 @@ namespace SarahsToolkit
             await AnalyzeAsync();
         }
 
-        private async Task AnalyzeAsync()
+        private async Task AnalyzeAsync(bool silent = false, bool fromClean = false, bool? quickOverride = null)
+        {
+            // Re-entrancy guard (finding 4): a scheduled clean can start
+            // while a manual one runs. The post-clean re-analyze passes
+            // fromClean=true and bypasses it — the outer clean holds it.
+            if (_cleanRunning && !fromClean) return;
+            bool tookFlag = false;
+            if (!fromClean) { _cleanRunning = true; tookFlag = true; }
+            try
+            {
+                await AnalyzeCoreAsync(silent, quickOverride);
+            }
+            finally
+            {
+                if (tookFlag) _cleanRunning = false;
+            }
+        }
+
+        private async Task AnalyzeCoreAsync(bool silent, bool? quickOverride)
         {
             AnalyzeButton.IsEnabled = false;
             CatCard.Visibility = Visibility.Collapsed;
@@ -2430,7 +2470,7 @@ namespace SarahsToolkit
             CatList.Children.Clear();
             _analyses.Clear();
 
-            bool quick = ModeQuick.IsChecked == true;
+            bool quick = quickOverride ?? (ModeQuick.IsChecked == true);
             var allCats = _cleanup.LoadCategories();
             if (allCats.Count == 0)
             {
@@ -2440,9 +2480,10 @@ namespace SarahsToolkit
                 // as before). This also covers the Quick/Full Clean buttons
                 // and the post-clean re-analyze, which route through here.
                 SetStatus("Analysis failed: cleanup data could not be loaded.");
-                MessageBox.Show("Could not load the cleanup categories (Data\\cleanup.json is missing or corrupt). " +
-                    "Reinstalling the app restores it; nothing was cleaned.",
-                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                if (!silent)
+                    MessageBox.Show("Could not load the cleanup categories (Data\\cleanup.json is missing or corrupt). " +
+                        "Reinstalling the app restores it; nothing was cleaned.",
+                        "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
                 AnalyzeButton.IsEnabled = true;
                 return;
             }
@@ -2520,7 +2561,25 @@ namespace SarahsToolkit
             if (_cleanCts != null) _cleanCts.Cancel();
         }
 
-        private async Task CleanSelectedAsync(bool silent = false)
+        // Returns true when the clean ran to completion (or there was
+        // nothing to clean); false when it was cancelled, failed, declined,
+        // or another clean was already running. The scheduled run stamps
+        // LastScheduledClean only on true (finding 1).
+        private async Task<bool> CleanSelectedAsync(bool silent = false, bool? quickOverride = null)
+        {
+            if (_cleanRunning) return false;
+            _cleanRunning = true;
+            try
+            {
+                return await CleanSelectedCoreAsync(silent, quickOverride);
+            }
+            finally
+            {
+                _cleanRunning = false;
+            }
+        }
+
+        private async Task<bool> CleanSelectedCoreAsync(bool silent, bool? quickOverride)
         {
             var selected = _analyses.Where(a => a.Box.IsChecked == true && a.Bytes > 0).ToList();
             if (selected.Count == 0)
@@ -2528,9 +2587,9 @@ namespace SarahsToolkit
                 if (!silent)
                     MessageBox.Show("Tick at least one category with files to clean first. Press Analyze if you haven't yet.",
                         "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
+                return true;
             }
-            string mode = ModeQuick.IsChecked == true ? "Quick Clean" : "Full Clean";
+            string mode = (quickOverride ?? (ModeQuick.IsChecked == true)) ? "Quick Clean" : "Full Clean";
             if (!silent)
             {
                 var confirm = MessageBox.Show(
@@ -2538,7 +2597,7 @@ namespace SarahsToolkit
                     " categor" + (selected.Count == 1 ? "y" : "ies") +
                     " (" + FormatBytes(selected.Sum(a => a.Bytes)) + ").\n\nYour personal files are not touched. Continue?",
                     "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (confirm != MessageBoxResult.Yes) return;
+                if (confirm != MessageBoxResult.Yes) return false;
             }
 
             SetCleanUiRunning(true);
@@ -2671,18 +2730,20 @@ namespace SarahsToolkit
                 // Separate from the clean above: a re-analyze failure (e.g.
                 // a missing cleanup.json) must not be reported as
                 // "Clean failed" when the clean itself succeeded.
-                try { await AnalyzeAsync(); }
+                try { await AnalyzeAsync(silent: silent, fromClean: true, quickOverride: quickOverride); }
                 catch (Exception ex)
                 {
                     SetStatus("Clean complete, but the follow-up analysis failed: " + ex.Message);
                     AnalyzeButton.IsEnabled = true;
                 }
+                return true;
             }
             catch (OperationCanceledException)
             {
                 SetStatus("Clean cancelled.");
                 CleanLog.Items.Add("=== Cancelled ===");
                 ProgressStage.Text = "Cancelled";
+                return false;
             }
             catch (Exception ex)
             {
@@ -2690,6 +2751,7 @@ namespace SarahsToolkit
                 if (!silent)
                     MessageBox.Show("Clean failed:\n" + ex.Message,
                         "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
             }
             finally
             {
@@ -2820,19 +2882,28 @@ namespace SarahsToolkit
 
         private async Task RunScheduledCleanAsync()
         {
+            if (_cleanRunning) return;
             if (ScheduleRunNowButton != null) ScheduleRunNowButton.IsEnabled = false;
             try
             {
                 // AnalyzeAsync pops a dialog when the cleanup data can't be
                 // loaded; a scheduled run must stay silent, so check first.
                 if (_cleanup.LoadCategories().Count == 0) return;
-                ModeQuick.IsChecked = true;
-                try { await AnalyzeAsync(); }
+                // Run as Quick Clean without touching the user's Cleanup
+                // page: the mode is a parameter now, so the radio button
+                // stays where they left it and their analysis survives.
+                try { await AnalyzeAsync(silent: true, quickOverride: true); }
                 catch { return; }
                 if (_analyses == null || _analyses.Count == 0) return;
-                await CleanSelectedAsync(silent: true);
-                _settings.Settings.LastScheduledClean = DateTime.Now.ToString("o");
-                _settings.Save();
+                bool ok = await CleanSelectedAsync(silent: true, quickOverride: true);
+                // Only stamp the run when it actually cleaned: a cancelled
+                // or failed run must retry next time, not a full interval
+                // later (finding 1).
+                if (ok)
+                {
+                    _settings.Settings.LastScheduledClean = DateTime.Now.ToString("o");
+                    _settings.Save();
+                }
                 RefreshSchedulePage();
             }
             finally
@@ -3094,7 +3165,9 @@ namespace SarahsToolkit
             {
                 DebloatPanel.Children.Add(new TextBlock
                 {
-                    Text = "All good — none of the listed bloatware apps are installed on this PC.",
+                    Text = _debloatLoadFailed
+                        ? "Couldn't load the debloat list — the check didn't run."
+                        : "All good — none of the listed bloatware apps are installed on this PC.",
                     Foreground = (Brush)FindResource("DkMutedBrush"),
                     TextWrapping = TextWrapping.Wrap
                 });
@@ -4240,7 +4313,20 @@ namespace SarahsToolkit
                     File.WriteAllBytes(tmp, bytes);
                 }
                 SetStatus("Launching installer...");
-                Process.Start(new ProcessStartInfo(tmp) { UseShellExecute = true });
+                try
+                {
+                    Process.Start(new ProcessStartInfo(tmp) { UseShellExecute = true });
+                }
+                catch (Exception launchEx)
+                {
+                    // The download worked and the file is still on disk,
+                    // so say so — a retry doesn't need to re-download
+                    // (finding 10).
+                    MessageBox.Show("The update downloaded, but the installer couldn't be launched:\n" + launchEx.Message,
+                        "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    SetStatus("Ready.");
+                    return;
+                }
                 _allowClose = true; // don't get parked in the tray; really exit
                 Application.Current.Shutdown();
             }

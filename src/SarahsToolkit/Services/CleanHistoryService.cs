@@ -72,7 +72,10 @@ namespace SarahsToolkit.Services
                 if (!File.Exists(_path)) return;
                 var loaded = JsonSerializer.Deserialize<List<CleanRecord>>(
                     File.ReadAllText(_path));
-                if (loaded != null) _records = loaded;
+                if (loaded != null)
+                    // Drop null entries: a parseable-but-null record would
+                    // crash the Schedule stats on first use (finding 8).
+                    _records = loaded.Where(r => r != null).ToList();
             }
             catch
             {

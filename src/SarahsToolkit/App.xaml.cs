@@ -106,8 +106,18 @@ namespace SarahsToolkit
             // being cut off the moment the app is ready. The 8-second cap
             // closes it no matter what, so a slow step can't hold the app
             // hostage.
-            var splash = new SplashWindow();
-            splash.Show();
+            // The splash itself is guarded (finding 5): if its window
+            // fails to open, the app still starts — just without a splash.
+            SplashWindow splash = null;
+            try
+            {
+                splash = new SplashWindow();
+                splash.Show();
+            }
+            catch
+            {
+                splash = null;
+            }
             bool startupDone = false;
             bool animationDone = false;
             var splashTimer = new System.Windows.Threading.DispatcherTimer
@@ -116,17 +126,18 @@ namespace SarahsToolkit
             };
             void TryCloseSplash()
             {
-                if (!startupDone || !animationDone) return;
+                if (splash == null || !startupDone || !animationDone) return;
                 splashTimer.Stop();
                 try { splash.Close(); } catch { }
             }
             splashTimer.Tick += (s, _) =>
             {
                 splashTimer.Stop();
-                try { splash.Close(); } catch { }
+                try { splash?.Close(); } catch { }
             };
             splashTimer.Start();
-            splash.AnimationFinished += (s, _) => { animationDone = true; TryCloseSplash(); };
+            if (splash != null)
+                splash.AnimationFinished += (s, _) => { animationDone = true; TryCloseSplash(); };
 
             // Create the main window on a background-priority callback so
             // the splash gets to render and start the video before the
