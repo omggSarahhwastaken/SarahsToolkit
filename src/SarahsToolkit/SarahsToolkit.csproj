@@ -13,11 +13,13 @@
     <Product>Sarah's Toolkit</Product>
     <Description>Sarah's Toolkit - Windows cleanup, debloat and optimization</Description>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <!-- Per-Monitor V2 DPI awareness (finding 2): the window renders
-         sharp at any scale instead of Windows bitmap-stretching it.
-         Declared here, not in the manifest — the compiler (WFAC010)
-         wants it via this property. -->
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- WFAC010 is suppressed, not ignored: the DPI settings live in
+         app.manifest (finding 2) because a custom manifest is required
+         for requireAdministrator, and ApplicationHighDpiMode is only an
+         analyzer-visible property — with a custom manifest it changes
+         nothing in the built exe (verified: no dpiAware in the binary).
+         The manifest is the only route that actually applies. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
