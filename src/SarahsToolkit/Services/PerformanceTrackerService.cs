@@ -80,7 +80,7 @@ namespace SarahsToolkit.Services
                 sb.Append("Where-Object { $_.MainWindowTitle -match 'Minecraft' } | Select-Object -First 1; ");
                 sb.Append("if ($mc) { $game = 'Minecraft Java' } }; ");
                 sb.Append("$cpu = [math]::Round((Get-Counter '\\Processor(_Total)\\% Processor Time' ");
-                sb.Append("-SampleInterval 1 -MaxSamples 1 -ErrorAction SilentlyContinue).CounterSamples[0].CookedValue, 1); ");
+                sb.Append("-SampleInterval 1 -MaxSamples 1 -ErrorAction SilentlyContinue).CounterSamples[0].CookedValue, 0); ");
                 sb.Append("$os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue; ");
                 sb.Append("$temp = -1; try { ");
                 sb.Append("$tz = Get-CimInstance MSAcpi_ThermalZoneTemperature -Namespace root/wmi -ErrorAction Stop; ");
@@ -88,8 +88,11 @@ namespace SarahsToolkit.Services
                 sb.Append("} catch { }; ");
                 sb.Append("Write-Output ('GAME=' + $game); ");
                 sb.Append("Write-Output ('CPU=' + $cpu); ");
-                sb.Append("Write-Output ('RAMUSED=' + [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / 1MB, 1)); ");
-                sb.Append("Write-Output ('RAMTOTAL=' + [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)); ");
+                // RAM as raw KB integers (same locale bug as the dashboard
+                // snapshot: a rounded "15,9" parsed as 159). CPU is rounded
+                // to a whole number too — its display is an integer anyway.
+                sb.Append("Write-Output ('RAMUSEDKB=' + ($os.TotalVisibleMemorySize - $os.FreePhysicalMemory)); ");
+                sb.Append("Write-Output ('RAMTOTALKB=' + $os.TotalVisibleMemorySize); ");
                 sb.Append("Write-Output ('TEMP=' + $temp); ");
                 PowerShellResult r = PowerShellRunner.RunScript(sb.ToString(), 2);
                 foreach (var line in (r.Output ?? "").Split(
@@ -103,8 +106,8 @@ namespace SarahsToolkit.Services
                     {
                         case "GAME": s.Game = val; break;
                         case "CPU": double.TryParse(val, out double c); s.CpuPct = c; break;
-                        case "RAMUSED": double.TryParse(val, out double ru); s.RamUsedGb = ru; break;
-                        case "RAMTOTAL": double.TryParse(val, out double rt); s.RamTotalGb = rt; break;
+                        case "RAMUSEDKB": if (long.TryParse(val, out long ru)) s.RamUsedGb = ru / 1048576.0; break;
+                        case "RAMTOTALKB": if (long.TryParse(val, out long rt)) s.RamTotalGb = rt / 1048576.0; break;
                         case "TEMP": int.TryParse(val, out int tp); s.TempC = tp; break;
                     }
                 }

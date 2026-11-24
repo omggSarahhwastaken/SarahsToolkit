@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -450,14 +451,15 @@ namespace SarahsToolkit.Services
                 sb.Append("$pick = @($real | Where-Object { $_.Name -match 'NVIDIA|GeForce|AMD|Radeon' }); ");
                 sb.Append("$gpu = $(if ($pick.Count -gt 0) { $pick[0].Name } elseif ($real.Count -gt 0) { $real[0].Name } else { '' }); ");
                 sb.Append("$os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue; ");
-                sb.Append("$c = Get-PSDrive C -ErrorAction SilentlyContinue; ");
                 sb.Append("$up = (Get-Date) - $os.LastBootUpTime; ");
                 sb.Append("Write-Output ('CPU=' + $cpu); ");
                 sb.Append("Write-Output ('GPU=' + $gpu); ");
-                sb.Append("Write-Output ('RAMTOTAL=' + [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)); ");
-                sb.Append("Write-Output ('RAMFREE=' + [math]::Round($os.FreePhysicalMemory / 1MB, 1)); ");
-                sb.Append("Write-Output ('DISKTOTAL=' + [math]::Round(($c.Used + $c.Free) / 1GB, 1)); ");
-                sb.Append("Write-Output ('DISKFREE=' + [math]::Round($c.Free / 1GB, 1)); ");
+                // RAM comes out as raw KB integers, not rounded decimals:
+                // a rounded "15,9" from a comma-decimal locale was read by
+                // double.TryParse as 159 (comma = thousands separator).
+                // Integers have no separator, so they can't be misread.
+                sb.Append("Write-Output ('RAMTOTALKB=' + $os.TotalVisibleMemorySize); ");
+                sb.Append("Write-Output ('RAMFREEKB=' + $os.FreePhysicalMemory); ");
                 sb.Append("Write-Output ('UPTIME=' + $up.Days + 'd ' + $up.Hours + 'h ' + $up.Minutes + 'm'); ");
                 sb.Append("Write-Output ('BUILD=' + $os.BuildNumber); ");
                 // Only Windows servicing/update keys count as "restart pending". PendingFileRenameOperations
@@ -477,15 +479,30 @@ namespace SarahsToolkit.Services
                     {
                         case "CPU": if (!string.IsNullOrWhiteSpace(val)) snap.Cpu = val; break;
                         case "GPU": if (!string.IsNullOrWhiteSpace(val)) snap.Gpu = val; break;
-                        case "RAMTOTAL": double.TryParse(val, out double rt); snap.RamTotalGb = rt; break;
-                        case "RAMFREE": double.TryParse(val, out double rf); snap.RamFreeGb = rf; break;
-                        case "DISKTOTAL": double.TryParse(val, out double dt); snap.DiskTotalGb = dt; break;
-                        case "DISKFREE": double.TryParse(val, out double df); snap.DiskFreeGb = df; break;
+                        case "RAMTOTALKB": if (long.TryParse(val, out long rt)) snap.RamTotalGb = rt / 1048576.0; break;
+                        case "RAMFREEKB": if (long.TryParse(val, out long rf)) snap.RamFreeGb = rf / 1048576.0; break;
                         case "UPTIME": snap.Uptime = val; break;
                         case "BUILD": snap.WindowsBuild = val; break;
                         case "REBOOT": snap.PendingReboot = val == "YES"; break;
                     }
                 }
+                // Disk C: read natively with DriveInfo, not PowerShell.
+                // The old PowerShell numbers were printed with the user's
+                // locale decimal separator ("," in much of Europe/Brazil),
+                // and double.TryParse read the comma as a thousands
+                // separator — 471.9 GB became 4719.0 GB (94% used) while
+                // the free value, a whole number, read fine. Bytes have no
+                // separator, so they can't be misread.
+                try
+                {
+                    var drive = new DriveInfo("C");
+                    if (drive.IsReady)
+                    {
+                        snap.DiskTotalGb = drive.TotalSize / 1073741824.0;
+                        snap.DiskFreeGb = drive.AvailableFreeSpace / 1073741824.0;
+                    }
+                }
+                catch { /* dashboard guards DiskTotalGb > 0 */ }
                 return snap;
             });
         }
