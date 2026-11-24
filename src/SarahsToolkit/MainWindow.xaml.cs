@@ -2446,21 +2446,19 @@ namespace SarahsToolkit
             await AnalyzeAsync();
         }
 
-        private async Task AnalyzeAsync(bool silent = false, bool fromClean = false, bool? quickOverride = null)
+        private async Task AnalyzeAsync(bool silent = false, bool? quickOverride = null)
         {
             // Re-entrancy guard (finding 4): a scheduled clean can start
-            // while a manual one runs. The post-clean re-analyze passes
-            // fromClean=true and bypasses it — the outer clean holds it.
-            if (_cleanRunning && !fromClean) return;
-            bool tookFlag = false;
-            if (!fromClean) { _cleanRunning = true; tookFlag = true; }
+            // while a manual one runs.
+            if (_cleanRunning) return;
+            _cleanRunning = true;
             try
             {
                 await AnalyzeCoreAsync(silent, quickOverride);
             }
             finally
             {
-                if (tookFlag) _cleanRunning = false;
+                _cleanRunning = false;
             }
         }
 
@@ -2481,8 +2479,8 @@ namespace SarahsToolkit
                 // LoadCategories returns empty on a missing/corrupt
                 // Data\cleanup.json instead of throwing; say so plainly
                 // rather than showing a 0-category analysis (or crashing,
-                // as before). This also covers the Quick/Full Clean buttons
-                // and the post-clean re-analyze, which route through here.
+                // as before). This also covers the Quick/Full Clean buttons,
+                // which route through here.
                 SetStatus("Analysis failed: cleanup data could not be loaded.");
                 if (!silent)
                     MessageBox.Show("Could not load the cleanup categories (Data\\cleanup.json is missing or corrupt). " +
@@ -2494,14 +2492,50 @@ namespace SarahsToolkit
             var cats = allCats.Where(c => !quick || c.QuickClean).ToList();
             SetStatus("Analyzing " + cats.Count + " categories...");
 
-            long totalBytes = 0, totalFiles = 0;
-            var muted = (Brush)FindResource("DkMutedBrush");
-            foreach (var cat in cats)
+            // Scan the categories in parallel: each one walks an
+            // independent directory tree, so on an SSD this is far
+            // faster than one at a time. Capped at 4 at once so
+            // spinning disks don't thrash. Each scan stays
+            // fault-isolated, like the old sequential loop.
+            using var gate = new SemaphoreSlim(4);
+            var scanTasks = cats.Select(async cat =>
             {
-                ScanResult sr;
-                try { sr = await _cleanup.ScanDetailedAsync(cat); }
-                catch { sr = new ScanResult(); }
+                await gate.WaitAsync();
+                try { return await _cleanup.ScanDetailedAsync(cat); }
+                catch { return new ScanResult(); }
+                finally { gate.Release(); }
+            }).ToList();
+            var results = await Task.WhenAll(scanTasks);
 
+            for (int i = 0; i < cats.Count; i++)
+            {
+                _analyses.Add(new CategoryAnalysis
+                {
+                    Cat = cats[i],
+                    Bytes = results[i].Bytes,
+                    Files = results[i].Files,
+                    Box = null
+                });
+            }
+
+            RefreshCategoryRows();
+            SetStatus("Analysis complete: " + FormatBytes(_analyses.Sum(a => a.Bytes)) + " found.");
+            AnalyzeButton.IsEnabled = true;
+        }
+
+        /// <summary>
+        /// (Re)builds the category list rows from _analyses, in category
+        /// order. Used by Analyze and by the post-clean refresh, which
+        /// updates the numbers from the clean's own results instead of
+        /// re-walking every category.
+        /// </summary>
+        private void RefreshCategoryRows()
+        {
+            var muted = (Brush)FindResource("DkMutedBrush");
+            CatList.Children.Clear();
+            long totalBytes = 0, totalFiles = 0;
+            foreach (var a in _analyses)
+            {
                 var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -2510,25 +2544,25 @@ namespace SarahsToolkit
                 var content = new StackPanel();
                 content.Children.Add(new TextBlock
                 {
-                    Text = cat.Name,
+                    Text = a.Cat.Name,
                     FontWeight = FontWeights.SemiBold,
                     TextWrapping = TextWrapping.Wrap
                 });
                 content.Children.Add(new TextBlock
                 {
-                    Text = cat.Description,
+                    Text = a.Cat.Description,
                     FontSize = 11,
                     Foreground = muted,
                     TextWrapping = TextWrapping.Wrap
                 });
                 cb.Content = content;
-                cb.IsChecked = sr.Bytes > 0;
-                cb.IsEnabled = sr.Bytes > 0;
+                cb.IsChecked = a.Bytes > 0;
+                cb.IsEnabled = a.Bytes > 0;
                 row.Children.Add(cb);
 
                 row.Children.Add(new TextBlock
                 {
-                    Text = FormatBytes(sr.Bytes) + " · " + sr.Files + " files",
+                    Text = FormatBytes(a.Bytes) + " · " + a.Files + " files",
                     VerticalAlignment = VerticalAlignment.Center,
                     Foreground = muted,
                     Margin = new Thickness(16, 0, 0, 0)
@@ -2536,23 +2570,15 @@ namespace SarahsToolkit
                 Grid.SetColumn(row.Children[1], 1);
 
                 CatList.Children.Add(row);
-                _analyses.Add(new CategoryAnalysis
-                {
-                    Cat = cat,
-                    Bytes = sr.Bytes,
-                    Files = sr.Files,
-                    Box = cb
-                });
-                totalBytes += sr.Bytes;
-                totalFiles += sr.Files;
+                a.Box = cb;
+                totalBytes += a.Bytes;
+                totalFiles += a.Files;
             }
 
-            AnalyzeTotal.Text = cats.Count + " categories · " + FormatBytes(totalBytes) +
+            AnalyzeTotal.Text = _analyses.Count + " categories · " + FormatBytes(totalBytes) +
                 " reclaimable · " + totalFiles + " files";
             CatCard.Visibility = Visibility.Visible;
             CleanButton.IsEnabled = _analyses.Any(a => a.Bytes > 0);
-            SetStatus("Analysis complete: " + FormatBytes(totalBytes) + " found.");
-            AnalyzeButton.IsEnabled = true;
         }
 
         private async void Clean_Click(object sender, RoutedEventArgs e)
@@ -2731,15 +2757,21 @@ namespace SarahsToolkit
                     MessageBox.Show(mode + " complete.\n" + FormatBytes(bytesFreed) + " freed in " +
                         filesDeleted + " files.", "Sarah's Toolkit", MessageBoxButton.OK,
                         MessageBoxImage.Information);
-                // Separate from the clean above: a re-analyze failure (e.g.
-                // a missing cleanup.json) must not be reported as
-                // "Clean failed" when the clean itself succeeded.
-                try { await AnalyzeAsync(silent: silent, fromClean: true, quickOverride: quickOverride); }
-                catch (Exception ex)
+                // No follow-up re-analyze: it re-walked every category a
+                // third time (analyze -> clean -> re-analyze) just to show
+                // ~0 remaining. The clean already measured what was freed
+                // per category, so update the list from that instead.
+                // Skipped files stay counted in the remainder.
+                foreach (var pc in perCat)
                 {
-                    SetStatus("Clean complete, but the follow-up analysis failed: " + ex.Message);
-                    AnalyzeButton.IsEnabled = true;
+                    var a = _analyses.FirstOrDefault(x => x.Cat.Name == pc.Item1);
+                    if (a != null)
+                    {
+                        a.Bytes = Math.Max(0, a.Bytes - pc.Item2);
+                        a.Files = Math.Max(0, a.Files - pc.Item3);
+                    }
                 }
+                RefreshCategoryRows();
                 return true;
             }
             catch (OperationCanceledException)

@@ -10,28 +10,43 @@
     "QuickClean": true
   },
   {
-    "Description": "Windows Temp and Prefetch",
+    "Description": "Windows Temp, Prefetch and CBS logs",
     "Id": "temp.windows",
     "Name": "Windows temp files",
     "Paths": [
       "C:\\Windows\\Temp\\*",
-      "C:\\Windows\\Prefetch\\*"
+      "C:\\Windows\\Prefetch\\*",
+      "C:\\Windows\\Logs\\CBS\\*"
     ],
     "QuickClean": true
   },
   {
-    "Description": "Chrome, Edge, Firefox, Opera, Brave",
+    "Description": "Chrome, Edge, Firefox, Opera, Opera GX, Brave, Vivaldi, Arc",
     "Id": "browser.cache",
     "Name": "Browser caches",
     "Paths": [
       "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache\\*",
       "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Code Cache\\*",
+      "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\GPUCache\\*",
       "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache\\*",
       "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Code Cache\\*",
+      "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\GPUCache\\*",
       "%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2\\*",
       "%APPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2\\*",
       "%APPDATA%\\Opera Software\\Opera Stable\\Cache\\*",
-      "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Cache\\*"
+      "%LOCALAPPDATA%\\Opera Software\\Opera Stable\\Cache\\*",
+      "%LOCALAPPDATA%\\Opera Software\\Opera Stable\\Code Cache\\*",
+      "%LOCALAPPDATA%\\Opera Software\\Opera Stable\\GPUCache\\*",
+      "%LOCALAPPDATA%\\Opera Software\\Opera GX Stable\\Cache\\*",
+      "%LOCALAPPDATA%\\Opera Software\\Opera GX Stable\\Code Cache\\*",
+      "%LOCALAPPDATA%\\Opera Software\\Opera GX Stable\\GPUCache\\*",
+      "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Cache\\*",
+      "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Code Cache\\*",
+      "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\GPUCache\\*",
+      "%LOCALAPPDATA%\\Vivaldi\\User Data\\Default\\Cache\\*",
+      "%LOCALAPPDATA%\\Vivaldi\\User Data\\Default\\Code Cache\\*",
+      "%LOCALAPPDATA%\\Arc\\User Data\\Default\\Cache\\*",
+      "%LOCALAPPDATA%\\Arc\\User Data\\Default\\Code Cache\\*"
     ],
     "QuickClean": true
   },
@@ -51,18 +66,34 @@
     ]
   },
   {
-    "Description": "NVIDIA, AMD, Intel and DirectX shader caches",
+    "Description": "NVIDIA, AMD, Intel and DirectX shader caches, plus NVIDIA driver downloads",
     "Id": "shader.cache",
     "Name": "Shader & GPU caches",
     "Paths": [
       "%LOCALAPPDATA%\\NVIDIA\\DXCache\\*",
       "%LOCALAPPDATA%\\NVIDIA\\GLCache\\*",
+      "%LOCALAPPDATA%Low\\NVIDIA\\PerDriverVersion\\DXCache\\*",
       "%APPDATA%\\NVIDIA\\ComputeCache\\*",
+      "%APPDATA%\\NVIDIA\\NVIDIA App\\*",
       "%LOCALAPPDATA%\\AMD\\DxCache\\*",
+      "%LOCALAPPDATA%\\AMD\\DxcCache\\*",
+      "%LOCALAPPDATA%\\AMD\\VkCache\\*",
       "%LOCALAPPDATA%\\AMD\\GLCache\\*",
       "%LOCALAPPDATA%\\Intel\\ShaderCache\\*",
       "%LOCALAPPDATA%\\D3DSCache\\*",
-      "%PROGRAMDATA%\\NVIDIA Corporation\\NV_Cache\\*"
+      "%PROGRAMDATA%\\NVIDIA Corporation\\NV_Cache\\*",
+      "%PROGRAMDATA%\\NVIDIA Corporation\\Downloader\\*"
+    ],
+    "QuickClean": false
+  },
+  {
+    "Description": "Driver installer files left on the drive root. The installed drivers are untouched",
+    "Id": "driver.leftovers",
+    "Name": "Driver installer leftovers",
+    "Paths": [
+      "C:\\NVIDIA\\*",
+      "C:\\AMD\\*",
+      "C:\\Intel\\*"
     ],
     "QuickClean": false
   },
@@ -84,7 +115,7 @@
     ]
   },
   {
-    "Description": "Steam, Epic, Roblox, Minecraft, Rockstar, EA, Ubisoft, Battle.net, FiveM, VRChat, DCS, Bloxstrap",
+    "Description": "Steam, Epic, Roblox, Minecraft, League of Legends, Rockstar, EA, Ubisoft, Battle.net, FiveM, VRChat, DCS, Bloxstrap",
     "Id": "game.caches",
     "Name": "Game launcher caches",
     "Paths": [
@@ -92,6 +123,11 @@
       "%LOCALAPPDATA%\\FiveM\\FiveM.app\\cache\\*",
       "%LOCALAPPDATA%\\Roblox\\Versions\\version-*\\cache\\*",
       "%TEMP%\\Roblox\\*",
+      "%LOCALAPPDATA%\\Roblox\\logs\\*",
+      "%APPDATA%\\.minecraft\\logs\\*",
+      "C:\\Riot Games\\League of Legends\\Logs\\*",
+      "%PROGRAMFILES(X86)%\\Steam\\steamapps\\shadercache\\*",
+      "%PROGRAMFILES%\\Steam\\steamapps\\shadercache\\*",
       "%LOCALAPPDATA%\\EpicGamesLauncher\\Saved\\webcache*\\*",
       "%LOCALAPPDATA%\\Ubisoft Game Launcher\\cache\\*",
       "%PROGRAMDATA%\\Blizzard Entertainment\\Battle.net\\Cache\\*",
@@ -104,7 +140,7 @@
     "QuickClean": false
   },
   {
-    "Description": "Discord, Spotify, Telegram, Signal, Office, Adobe",
+    "Description": "Discord, Spotify, Telegram, Signal, Teams, Slack, Notion, VS Code, GOG, Office, Adobe",
     "Id": "app.caches",
     "Name": "App caches",
     "Paths": [
@@ -128,6 +164,20 @@
       "%APPDATA%\\Signal\\Code Cache\\*",
       "%APPDATA%\\Signal\\GPUCache\\*",
       "%APPDATA%\\Signal\\temp\\*",
+      "%APPDATA%\\Microsoft\\Teams\\Cache\\*",
+      "%APPDATA%\\Microsoft\\Teams\\Code Cache\\*",
+      "%APPDATA%\\Microsoft\\Teams\\GPUCache\\*",
+      "%APPDATA%\\Microsoft\\Teams\\tmp\\*",
+      "%APPDATA%\\Slack\\Cache\\*",
+      "%APPDATA%\\Slack\\Code Cache\\*",
+      "%APPDATA%\\Slack\\GPUCache\\*",
+      "%APPDATA%\\Notion\\Cache\\*",
+      "%APPDATA%\\Notion\\Code Cache\\*",
+      "%APPDATA%\\Notion\\GPUCache\\*",
+      "%APPDATA%\\Code\\Cache\\*",
+      "%APPDATA%\\Code\\Code Cache\\*",
+      "%APPDATA%\\Code\\GPUCache\\*",
+      "%LOCALAPPDATA%\\GOG.com\\Galaxy\\cache\\*",
       "%LOCALAPPDATA%\\Microsoft\\Office\\16.0\\OfficeFileCache\\*",
       "%LOCALAPPDATA%\\Adobe\\ARM\\*"
     ],
