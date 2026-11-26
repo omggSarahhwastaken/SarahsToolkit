@@ -26,6 +26,10 @@ namespace SarahsToolkit.Services
 
         private readonly Dictionary<string, CachedState> _stateCache =
             new Dictionary<string, CachedState>(StringComparer.OrdinalIgnoreCase);
+        // The AI tab reads states and applies tweaks on a background
+        // thread, so every cache access goes through this lock — a plain
+        // Dictionary corrupts on a concurrent read + write.
+        private readonly object _cacheLock = new object();
         private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(10);
         // State reads get a short timeout: a hung check must not freeze
         // the UI for a minute per tweak.
@@ -46,9 +50,12 @@ namespace SarahsToolkit.Services
         public TweakState GetState(TweakDefinition tweak)
         {
             CachedState cached;
-            if (_stateCache.TryGetValue(tweak.Id, out cached) &&
-                DateTime.UtcNow - cached.At < CacheTtl)
-                return cached.State;
+            lock (_cacheLock)
+            {
+                if (_stateCache.TryGetValue(tweak.Id, out cached) &&
+                    DateTime.UtcNow - cached.At < CacheTtl)
+                    return cached.State;
+            }
 
             TweakState state;
             string error = "";
@@ -92,7 +99,8 @@ namespace SarahsToolkit.Services
                 state = TweakState.Unknown;
                 error = ex.GetType().Name + ": " + ex.Message;
             }
-            _stateCache[tweak.Id] = new CachedState { State = state, Error = error, At = DateTime.UtcNow };
+            lock (_cacheLock)
+                _stateCache[tweak.Id] = new CachedState { State = state, Error = error, At = DateTime.UtcNow };
             return state;
         }
 
@@ -103,12 +111,18 @@ namespace SarahsToolkit.Services
             // is a cache hit in the normal path — it must not launch a
             // second PowerShell just to explain an Unknown state.
             CachedState cached;
-            if (_stateCache.TryGetValue(tweak.Id, out cached) &&
-                DateTime.UtcNow - cached.At < CacheTtl)
-                return cached.Error ?? "";
+            lock (_cacheLock)
+            {
+                if (_stateCache.TryGetValue(tweak.Id, out cached) &&
+                    DateTime.UtcNow - cached.At < CacheTtl)
+                    return cached.Error ?? "";
+            }
             GetState(tweak);
-            if (_stateCache.TryGetValue(tweak.Id, out cached))
-                return cached.Error ?? "";
+            lock (_cacheLock)
+            {
+                if (_stateCache.TryGetValue(tweak.Id, out cached))
+                    return cached.Error ?? "";
+            }
             return "";
         }
 
@@ -152,10 +166,13 @@ namespace SarahsToolkit.Services
         {
             // A power-tweak apply/revert can change what the other power
             // checks report (the active plan moved), so clear everything.
-            if (PowerBackupService.IsPowerTweak(tweak.Id))
-                _stateCache.Clear();
-            else
-                _stateCache.Remove(tweak.Id);
+            lock (_cacheLock)
+            {
+                if (PowerBackupService.IsPowerTweak(tweak.Id))
+                    _stateCache.Clear();
+                else
+                    _stateCache.Remove(tweak.Id);
+            }
         }
 
         // Scripts run through the temp-file runner (file deleted afterwards).

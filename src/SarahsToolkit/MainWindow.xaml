@@ -1268,18 +1268,67 @@
             </StatusBar>
         </Grid>
 
-        <!-- ============ Right rail: upcoming game releases ============ -->
+        <!-- ============ Right rail: releases + AI plan tabs ============ -->
         <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource DkRailBrush}"
                 BorderBrush="{StaticResource DkCardBorderBrush}" BorderThickness="1,0,0,0">
             <DockPanel>
-                <StackPanel DockPanel.Dock="Top" Margin="14,14,14,10">
-                    <TextBlock Text="Upcoming releases" FontSize="14" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="GameFeedCount" FontSize="11"
-                               Foreground="{StaticResource DkMutedBrush}" Margin="0,2,0,0"/>
+                <!-- Rail tabs: Releases stays the default. -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="14,12,14,8">
+                    <Button x:Name="RailReleasesTab" Content="Releases" Tag="Releases"
+                            Click="RailTab_Click" Margin="0,0,6,0" Padding="12,5"
+                            Background="{StaticResource DkAccentBrush}" FontWeight="SemiBold"/>
+                    <Button x:Name="RailAiTab" Content="AI" Tag="AI"
+                            Click="RailTab_Click" Padding="12,5"/>
                 </StackPanel>
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel x:Name="GameFeedPanel" Margin="14,0,14,14"/>
-                </ScrollViewer>
+                <Grid>
+                    <!-- Releases view, unchanged. -->
+                    <DockPanel x:Name="RailReleasesPanel">
+                        <StackPanel DockPanel.Dock="Top" Margin="14,2,14,10">
+                            <TextBlock Text="Upcoming releases" FontSize="14" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="GameFeedCount" FontSize="11"
+                                       Foreground="{StaticResource DkMutedBrush}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="GameFeedPanel" Margin="14,0,14,14"/>
+                        </ScrollViewer>
+                    </DockPanel>
+                    <!-- AI plan view: the XAML is here from launch, but no
+                         data work happens until the tab is first opened. -->
+                    <DockPanel x:Name="RailAiPanel" Visibility="Collapsed">
+                        <StackPanel DockPanel.Dock="Top" Margin="14,2,14,10">
+                            <TextBlock Text="AI plan" FontSize="14" FontWeight="SemiBold"/>
+                            <TextBlock FontSize="11" Foreground="{StaticResource DkMutedBrush}"
+                                       Margin="0,2,0,0" TextWrapping="Wrap"
+                                       Text="Tell it what you want. It reads your PC's specs and builds a plan for your system — no pre-made preset, no AI model, nothing leaves your PC."/>
+                            <Grid Margin="0,8,0,0">
+                                <TextBox x:Name="AiRequestBox" MinHeight="52" TextWrapping="Wrap"
+                                         AcceptsReturn="True" VerticalContentAlignment="Top"
+                                         TextChanged="AiRequestBox_TextChanged" KeyDown="AiRequestBox_KeyDown"/>
+                                <TextBlock x:Name="AiRequestHint" Margin="6,4,6,0" FontSize="12"
+                                           Foreground="{StaticResource DkMutedBrush}" TextWrapping="Wrap"
+                                           IsHitTestVisible="False" VerticalAlignment="Top"
+                                           Text="e.g. make my games run better"/>
+                            </Grid>
+                            <Button x:Name="AiAskButton" Content="Build my plan" Margin="0,8,0,0"
+                                    Style="{StaticResource AccentButton}" Click="AiAsk_Click"/>
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Games run better" Tag="make my games run better" Click="AiChip_Click" Margin="0,0,6,6" Padding="8,3" FontSize="11"/>
+                                <Button Content="Longer battery" Tag="make my battery last longer" Click="AiChip_Click" Margin="0,0,6,6" Padding="8,3" FontSize="11"/>
+                                <Button Content="Faster boot" Tag="make my PC boot faster" Click="AiChip_Click" Margin="0,0,6,6" Padding="8,3" FontSize="11"/>
+                                <Button Content="More private" Tag="make my PC more private" Click="AiChip_Click" Margin="0,0,6,6" Padding="8,3" FontSize="11"/>
+                                <Button Content="Faster PC" Tag="make my PC faster" Click="AiChip_Click" Margin="0,0,6,6" Padding="8,3" FontSize="11"/>
+                            </WrapPanel>
+                        </StackPanel>
+                        <Button x:Name="AiApplyButton" Content="Apply plan" DockPanel.Dock="Bottom"
+                                Style="{StaticResource AccentButton}" Margin="14,8,14,14"
+                                Click="AiApply_Click" IsEnabled="False"/>
+                        <TextBlock x:Name="AiStatus" DockPanel.Dock="Bottom" Margin="14,0,14,0"
+                                   FontSize="11" Foreground="{StaticResource DkMutedBrush}" TextWrapping="Wrap"/>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="AiPlanPanel" Margin="14,0,14,14"/>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
             </DockPanel>
         </Border>
     </Grid>

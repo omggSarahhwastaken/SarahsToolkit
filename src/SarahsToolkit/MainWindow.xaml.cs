@@ -75,6 +75,17 @@ namespace SarahsToolkit
         private readonly GameFeedService _games = new GameFeedService();
         private readonly VitalsService _vitals = new VitalsService();
         private readonly HealthService _health = new HealthService();
+        // AI tab (right rail): nothing AI-related loads at startup.
+        // Specs are fetched the first time the tab is opened (or Ask is
+        // pressed), and tweak states are only read when a plan is built
+        // — the tab costs nothing while the Releases tab is showing.
+        private readonly AiPlanService _aiPlan = new AiPlanService();
+        private Task _aiSpecsTask;
+        private bool _aiSpecsLoaded;
+        private DashboardSnapshot _aiSnap;
+        private bool _aiHasBattery;
+        private readonly List<Tuple<CheckBox, AiPlanItem>> _aiPlanRows =
+            new List<Tuple<CheckBox, AiPlanItem>>();
         private readonly BootService _boot = new BootService();
         private bool _healthLoaded;
         private DateTime _healthScoreAt = DateTime.MinValue;
@@ -1948,6 +1959,221 @@ namespace SarahsToolkit
         {
             NavNetwork.IsChecked = true;
             await RunSpeedTestAsync();
+        }
+
+        // ---------- AI tab (right rail) ----------
+
+        private void RailTab_Click(object sender, RoutedEventArgs e)
+        {
+            bool ai = string.Equals((string)((Button)sender).Tag, "AI",
+                StringComparison.OrdinalIgnoreCase);
+            RailReleasesPanel.Visibility = ai ? Visibility.Collapsed : Visibility.Visible;
+            RailAiPanel.Visibility = ai ? Visibility.Visible : Visibility.Collapsed;
+            var accent = (Brush)FindResource("DkAccentBrush");
+            var control = (Brush)FindResource("DkControlBrush");
+            RailReleasesTab.Background = ai ? control : accent;
+            RailAiTab.Background = ai ? accent : control;
+            RailReleasesTab.FontWeight = ai ? FontWeights.Normal : FontWeights.SemiBold;
+            RailAiTab.FontWeight = ai ? FontWeights.SemiBold : FontWeights.Normal;
+            // First open starts the spec read in the background so Ask is
+            // instant; nothing was fetched before this point.
+            if (ai) _ = EnsureAiSpecsAsync();
+        }
+
+        private void AiRequestBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            AiRequestHint.Visibility = string.IsNullOrWhiteSpace(AiRequestBox.Text)
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void AiRequestBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            // Enter asks (Shift+Enter keeps the newline).
+            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+            {
+                e.Handled = true;
+                _ = BuildAiPlanAsync();
+            }
+        }
+
+        private void AiChip_Click(object sender, RoutedEventArgs e)
+        {
+            AiRequestBox.Text = (string)((Button)sender).Tag;
+            _ = BuildAiPlanAsync();
+        }
+
+        // Fetches the spec snapshot + battery once, on first use. A failed
+        // read must not block the tab: the plan falls back to the request
+        // alone, with a note saying so.
+        private Task EnsureAiSpecsAsync()
+        {
+            if (_aiSpecsLoaded) return Task.CompletedTask;
+            if (_aiSpecsTask != null) return _aiSpecsTask;
+            AiStatus.Text = "Reading your PC…";
+            _aiSpecsTask = Task.Run(async () =>
+            {
+                try
+                {
+                    var snapTask = _diag.GetDashboardSnapshotAsync();
+                    var battTask = _health.GetBatteryInfoAsync();
+                    await Task.WhenAll(snapTask, battTask);
+                    _aiSnap = snapTask.Result;
+                    var batt = battTask.Result;
+                    _aiHasBattery = batt != null && batt.HasBattery;
+                }
+                catch
+                {
+                    _aiSnap = null;
+                    _aiHasBattery = false;
+                }
+                _aiSpecsLoaded = true;
+                Dispatcher.Invoke(() =>
+                {
+                    if (_aiSnap != null)
+                        AiStatus.Text = _aiSnap.Cpu + " · " + _aiSnap.Gpu + " · " +
+                            _aiSnap.RamTotalGb.ToString("0") + " GB RAM" +
+                            (_aiHasBattery ? " · laptop" : "");
+                    else
+                        AiStatus.Text = "Couldn't read your PC's specs — the plan will use your request only.";
+                });
+            });
+            return _aiSpecsTask;
+        }
+
+        private async void AiAsk_Click(object sender, RoutedEventArgs e)
+        {
+            await BuildAiPlanAsync();
+        }
+
+        private async Task BuildAiPlanAsync()
+        {
+            AiAskButton.IsEnabled = false;
+            AiApplyButton.IsEnabled = false;
+            AiPlanPanel.Children.Clear();
+            _aiPlanRows.Clear();
+            AiStatus.Text = "Reading your PC…";
+            await EnsureAiSpecsAsync();
+            string request = AiRequestBox.Text ?? "";
+            AiPlan plan;
+            try
+            {
+                // Tweak states are only read here, on Ask — never at
+                // startup and never while the Releases tab is showing.
+                plan = await Task.Run(() =>
+                    _aiPlan.BuildPlan(request, _tweakDefs, _tweaks, _aiSnap, _aiHasBattery));
+            }
+            catch (Exception ex)
+            {
+                AiStatus.Text = "Couldn't build a plan: " + ex.Message;
+                AiAskButton.IsEnabled = true;
+                return;
+            }
+            var muted = (Brush)FindResource("DkMutedBrush");
+            foreach (string note in plan.Notes)
+            {
+                AiPlanPanel.Children.Add(new TextBlock
+                {
+                    Text = note,
+                    FontSize = 11,
+                    Foreground = muted,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 8)
+                });
+            }
+            if (plan.Items.Count == 0)
+            {
+                AiStatus.Text = "Everything that fits is already on. Try a different request.";
+                AiAskButton.IsEnabled = true;
+                return;
+            }
+            foreach (var item in plan.Items)
+            {
+                var cb = new CheckBox
+                {
+                    Margin = new Thickness(0, 4, 0, 4),
+                    VerticalAlignment = VerticalAlignment.Top,
+                    IsChecked = true
+                };
+                var content = new StackPanel();
+                content.Children.Add(new TextBlock
+                {
+                    Text = item.Tweak.Name + (item.Tweak.RequiresReboot ? " (restart needed)" : ""),
+                    FontWeight = FontWeights.SemiBold,
+                    TextWrapping = TextWrapping.Wrap
+                });
+                content.Children.Add(new TextBlock
+                {
+                    Text = item.Reason,
+                    FontSize = 11,
+                    Foreground = muted,
+                    TextWrapping = TextWrapping.Wrap
+                });
+                cb.Content = content;
+                cb.Checked += AiPlanCheck_Changed;
+                cb.Unchecked += AiPlanCheck_Changed;
+                AiPlanPanel.Children.Add(cb);
+                _aiPlanRows.Add(Tuple.Create(cb, item));
+            }
+            AiStatus.Text = plan.Items.Count + " tweaks in your plan — uncheck any you don't want, then Apply.";
+            AiApplyButton.IsEnabled = true;
+            AiAskButton.IsEnabled = true;
+        }
+
+        private void AiPlanCheck_Changed(object sender, RoutedEventArgs e)
+        {
+            AiApplyButton.IsEnabled = _aiPlanRows.Any(r => r.Item1.IsChecked == true);
+        }
+
+        private async void AiApply_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = _aiPlanRows.Where(r => r.Item1.IsChecked == true)
+                .Select(r => r.Item2.Tweak).ToList();
+            if (selected.Count == 0) return;
+            bool needsReboot = selected.Any(t => t.RequiresReboot);
+            var confirm = MessageBox.Show(
+                "Apply " + selected.Count + " tweak(s) from your AI plan?" +
+                (needsReboot ? "\n\nRestart Windows afterwards for full effect." : ""),
+                "Sarah's Toolkit", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            AiAskButton.IsEnabled = false;
+            AiApplyButton.IsEnabled = false;
+            AiStatus.Text = "Applying…";
+            int applied = 0, failed = 0;
+            var errors = new List<string>();
+            // Same order rule as presets (finding 1): the Ultimate
+            // Performance plan switch must run before any plan-scoped
+            // power setting, regardless of the plan's order.
+            var ordered = selected.OrderBy(t =>
+                string.Equals(t.Id, "power.ultimatePerf", StringComparison.OrdinalIgnoreCase) ? 0 : 1).ToList();
+            await Task.Run(() =>
+            {
+                foreach (var tw in ordered)
+                {
+                    if (_tweaks.GetState(tw) != TweakState.NotApplied) continue;
+                    try { _tweaks.Apply(tw); applied++; }
+                    catch (Exception ex) { failed++; errors.Add(tw.Name + ": " + ex.Message); }
+                }
+            });
+            // _tweaks.Apply already records the power backup (same path
+            // presets use), so reverting from Optimize still restores
+            // the user's own values.
+            string result = applied > 0 ? "Applied " + applied + " tweak(s)" : "Nothing applied";
+            if (failed > 0) result += ", " + failed + " failed";
+            if (needsReboot && applied > 0) result += ". Restart Windows for full effect";
+            if (failed > 0)
+                MessageBox.Show("Some changes failed:\n" + string.Join("\n", errors),
+                    "Sarah's Toolkit", MessageBoxButton.OK, MessageBoxImage.Warning);
+            // Re-sync the Optimize/Customize/Security toggles and the
+            // preset ratings, like a preset apply does.
+            BuildTweakTab(OptimizePanel, new[] { "Privacy", "Gaming", "Performance", "Network", "Power" });
+            BuildTweakTab(CustomizePanel, new[] { "Theme", "Taskbar", "Explorer", "Start" });
+            BuildTweakTab(SecurityTweaksPanel, new[] { "Security" });
+            RefreshPresetRatings();
+            // Re-check states so applied tweaks leave the plan.
+            await BuildAiPlanAsync();
+            AiStatus.Text = result + ".";
+            AiAskButton.IsEnabled = true;
         }
 
         // ---------- Tweaks (toggle switches) ----------
