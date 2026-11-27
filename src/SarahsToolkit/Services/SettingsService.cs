@@ -172,6 +172,7 @@ namespace SarahsToolkit.Services
         private static readonly string[] SettingsFieldNames =
         {
             "GuiScale", "MinimizeToTray", "CheckUpdatesOnLaunch", "StartWithWindows",
+            "TrayBalloonShown",
             "DefaultPage", "LastPage", "TempFahrenheit", "LogPerformance", "IdleTempC",
             "BootBaselinePreset", "BootBaselineAvgSec", "BootBaselineBootId", "BootBaselineDate",
             "ScheduledClean", "LastScheduledClean"
@@ -217,6 +218,10 @@ namespace SarahsToolkit.Services
     {
         public double GuiScale { get; set; } = 1.0;
         public bool MinimizeToTray { get; set; } = true;
+        // True once the "Still running" balloon has been shown after
+        // parking to the tray — it explains the tray once, then later
+        // closes park silently instead of spamming it every time.
+        public bool TrayBalloonShown { get; set; } = false;
         public bool CheckUpdatesOnLaunch { get; set; } = true;
         public bool StartWithWindows { get; set; } = false;
         public string DefaultPage { get; set; } = "Home"; // Home or Last

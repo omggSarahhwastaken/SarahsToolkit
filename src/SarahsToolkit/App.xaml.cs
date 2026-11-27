@@ -19,9 +19,18 @@ namespace SarahsToolkit
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
 
-        private const int SW_RESTORE = 9;
+        private const int SW_SHOW = 5;
 
         private static Mutex _instanceMutex;
+        // Wakes the first instance when a second launch happens. A plain
+        // FindWindow + ShowWindow can't do it: SW_RESTORE won't un-hide a
+        // window parked with Hide(), so the tray-parked app stayed
+        // invisible. The event is held in a static so it lives for the
+        // app's life, next to the mutex.
+        private static EventWaitHandle _wakeEvent;
+
+        /// <summary>The wake event the first instance listens on (null if it could not be created).</summary>
+        public static EventWaitHandle WakeEvent => _wakeEvent;
 
         /// <summary>
         /// Writes full exception details (type, message, stack trace) to
@@ -84,12 +93,26 @@ namespace SarahsToolkit
             catch { created = true; }
             if (!created)
             {
+                // Signal the running copy first: its watcher thread brings
+                // the window back even when it is parked in the tray.
+                // If the event can't be opened, the FindWindow fallback
+                // below still runs.
+                try
+                {
+                    using (var wake = EventWaitHandle.OpenExisting(@"Local\Sarah.SarahsToolkit.Wake"))
+                        wake.Set();
+                }
+                catch { }
                 try
                 {
                     IntPtr hwnd = FindWindow(null, "Sarah's Toolkit");
                     if (hwnd != IntPtr.Zero)
                     {
-                        ShowWindow(hwnd, SW_RESTORE);
+                        // SW_SHOW, not SW_RESTORE: restore won't un-hide a
+                        // window hidden with Hide() (the tray-parked
+                        // window), so the second launch used to show
+                        // nothing at all.
+                        ShowWindow(hwnd, SW_SHOW);
                         SetForegroundWindow(hwnd);
                     }
                 }
@@ -97,6 +120,9 @@ namespace SarahsToolkit
                 Shutdown();
                 return;
             }
+            // First instance: own the wake event the second launch signals.
+            try { _wakeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\Sarah.SarahsToolkit.Wake"); }
+            catch { _wakeEvent = null; }
 
             base.OnStartup(e);
 

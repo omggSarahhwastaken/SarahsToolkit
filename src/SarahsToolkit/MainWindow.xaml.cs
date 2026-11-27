@@ -54,6 +54,9 @@ namespace SarahsToolkit
         private bool _perfSampling;
         private System.Windows.Forms.NotifyIcon _tray;
         private bool _allowClose;
+        // Stops the wake watcher when the window is really closing. Read
+        // on the watcher thread, written on the UI thread.
+        private volatile bool _wakeStop;
 
         private List<TweakDefinition> _tweakDefs = new List<TweakDefinition>();
         // tweak id -> names of other tweaks that write the same registry value
@@ -191,6 +194,7 @@ namespace SarahsToolkit
         {
             if (_allowClose)
             {
+                _wakeStop = true;
                 SaveWindowGeometry();
                 if (_tray != null) { _tray.Dispose(); _tray = null; }
                 try { _vitals.Dispose(); } catch { }
@@ -201,6 +205,7 @@ namespace SarahsToolkit
             // unless the user turned that off in Settings.
             if (!_settings.Settings.MinimizeToTray)
             {
+                _wakeStop = true;
                 SaveWindowGeometry();
                 if (_tray != null) { _tray.Dispose(); _tray = null; }
                 try { _vitals.Dispose(); } catch { }
@@ -212,9 +217,16 @@ namespace SarahsToolkit
             Hide();
             EnsureTrayIcon();
             _tray.Visible = true;
-            _tray.ShowBalloonTip(3000, "Sarah's Toolkit",
-                "Still running — double-click the tray icon to reopen, or right-click it to exit.",
-                System.Windows.Forms.ToolTipIcon.Info);
+            // The balloon explains the tray once, ever. It used to fire on
+            // every close, so the first few closes spammed it.
+            if (!_settings.Settings.TrayBalloonShown)
+            {
+                _tray.ShowBalloonTip(3000, "Sarah's Toolkit",
+                    "Still running — double-click the tray icon to reopen, or right-click it to exit.",
+                    System.Windows.Forms.ToolTipIcon.Info);
+                _settings.Settings.TrayBalloonShown = true;
+                _settings.Save();
+            }
         }
 
         private void EnsureTrayIcon()
@@ -254,6 +266,35 @@ namespace SarahsToolkit
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
             if (_tray != null) _tray.Visible = false;
             Activate();
+        }
+
+        // Watches the named wake event a second launch signals. A
+        // background thread, so it never keeps the process alive on a
+        // real exit; it stops when the window really closes (_wakeStop).
+        // The window stays alive while parked in the tray, so the watcher
+        // keeps running there — that is what brings the window back when
+        // the user reopens the app and the tray icon is buried in the
+        // Windows 11 overflow.
+        private void StartWakeWatcher()
+        {
+            var wake = App.WakeEvent;
+            if (wake == null) return;
+            var thread = new Thread(() =>
+            {
+                while (!_wakeStop)
+                {
+                    try
+                    {
+                        if (!wake.WaitOne()) break;
+                    }
+                    catch { break; }
+                    if (_wakeStop) break;
+                    try { Dispatcher.Invoke(() => { if (!_wakeStop) ShowFromTray(); }); }
+                    catch { break; }
+                }
+            })
+            { IsBackground = true, Name = "WakeWatcher" };
+            thread.Start();
         }
 
         private void MainWindow_SourceInitialized(object sender, EventArgs e)
@@ -430,6 +471,10 @@ namespace SarahsToolkit
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            // A second launch signals the wake event; this watcher is what
+            // brings the window back when it is parked in the tray.
+            StartWakeWatcher();
+
             // Clean up the update installer the updater left in %TEMP% — it has
             // already installed by the time the app relaunches. Best effort.
             try
