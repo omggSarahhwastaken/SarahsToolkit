@@ -3728,51 +3728,72 @@ namespace SarahsToolkit
         private async Task RunSpeedTestAsync()
         {
             SpeedTestButton.IsEnabled = false;
-            SpeedDetails.Text = "Downloading Speedtest CLI (Ookla)…";
+            SpeedDetails.Text = "Getting Speedtest ready…";
             GaugeValue.Text = "— Mbps";
             SetGaugeTarget(0);
             try
             {
-                var r = await _tools.SpeedTestCliAsync();
-                string wifi = null, result = null, url = null, error = null;
-                foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                // Phase 1: make sure the Ookla CLI is on disk. It stays
+                // cached in %TEMP% between runs now, so this is instant
+                // after the first test and only downloads when missing.
+                string ensureError = null;
+                var ensure = await _tools.EnsureSpeedTestCliAsync();
+                foreach (var line in (ensure.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    if (line.StartsWith("WIFI|")) wifi = line.Substring(5);
-                    else if (line.StartsWith("RESULT|")) result = line.Substring(7);
-                    else if (line.StartsWith("URL|")) url = line.Substring(4);
-                    else if (line.StartsWith("ERROR|")) error = line.Substring(6);
+                    if (line.StartsWith("ERROR|")) ensureError = line.Substring(6);
                 }
-                if (result != null)
+                if (ensureError != null)
                 {
-                    var parts = result.Split('|');
-                    if (parts.Length < 4)
-                    {
-                        // Malformed RESULT| line: report a partial failure
-                        // instead of throwing on parts[1..3] and reporting
-                        // the whole test as failed.
-                        SpeedDetails.Text = "Speed test returned an incomplete result: " + result;
-                        SpeedUrl.Text = "";
-                    }
-                    else
-                    {
-                        double down = 0;
-                        double.TryParse(parts[1], out down);
-                        SetGaugeTarget(down);
-                        GaugeValue.Text = parts[1] + " Mbps";
-                        SpeedDetails.Text =
-                            "ISP: " + parts[3] + "\n" +
-                            "Ping: " + parts[0] + " ms\n" +
-                            "Download: " + parts[1] + " Mbps\n" +
-                            "Upload: " + parts[2] + " Mbps\n" +
-                            (wifi ?? "").TrimEnd('\n');
-                        SpeedUrl.Text = url != null ? "Full results: " + url : "";
-                    }
+                    SpeedDetails.Text = "Speed test failed: " + ensureError + ". Check your connection or try speedtest.net in your browser.";
+                    SpeedUrl.Text = "";
                 }
                 else
                 {
-                    SpeedDetails.Text = "Speed test failed" + (error != null ? ": " + error + "." : ".") +
-                        " Check your connection or try speedtest.net in your browser.";
-                    SpeedUrl.Text = "";
+                    // Phase 2: run the test. The status now says what is
+                    // actually happening instead of sitting on
+                    // "Downloading…" for the whole test.
+                    SpeedDetails.Text = "Finding best server and running test (about 30 seconds)…";
+                    var r = await _tools.SpeedTestCliAsync();
+                    string wifi = null, result = null, url = null, error = null;
+                    foreach (var line in (r.Output ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (line.StartsWith("WIFI|")) wifi = line.Substring(5);
+                        else if (line.StartsWith("RESULT|")) result = line.Substring(7);
+                        else if (line.StartsWith("URL|")) url = line.Substring(4);
+                        else if (line.StartsWith("ERROR|")) error = line.Substring(6);
+                    }
+                    if (result != null)
+                    {
+                        var parts = result.Split('|');
+                        if (parts.Length < 4)
+                        {
+                            // Malformed RESULT| line: report a partial failure
+                            // instead of throwing on parts[1..3] and reporting
+                            // the whole test as failed.
+                            SpeedDetails.Text = "Speed test returned an incomplete result: " + result;
+                            SpeedUrl.Text = "";
+                        }
+                        else
+                        {
+                            double down = 0;
+                            double.TryParse(parts[1], out down);
+                            SetGaugeTarget(down);
+                            GaugeValue.Text = parts[1] + " Mbps";
+                            SpeedDetails.Text =
+                                "ISP: " + parts[3] + "\n" +
+                                "Ping: " + parts[0] + " ms\n" +
+                                "Download: " + parts[1] + " Mbps\n" +
+                                "Upload: " + parts[2] + " Mbps\n" +
+                                (wifi ?? "").TrimEnd('\n');
+                            SpeedUrl.Text = url != null ? "Full results: " + url : "";
+                        }
+                    }
+                    else
+                    {
+                        SpeedDetails.Text = "Speed test failed" + (error != null ? ": " + error + "." : ".") +
+                            " Check your connection or try speedtest.net in your browser.";
+                        SpeedUrl.Text = "";
+                    }
                 }
             }
             catch (Exception ex)
